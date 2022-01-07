@@ -1,4 +1,5 @@
 use byteorder::{BigEndian, ByteOrder};
+use num_enum::TryFromPrimitive;
 
 pub struct Definition {
     pub name: String,
@@ -8,7 +9,7 @@ pub struct Definition {
 pub type Instructions = Vec<u8>;
 
 #[repr(u8)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, TryFromPrimitive)]
 pub enum Opcode {
     OpConstant,
 }
@@ -29,7 +30,7 @@ impl Opcode {
     }
 }
 
-pub fn make(op: Opcode, operands: &[i32]) -> Vec<u8> {
+pub fn make(op: Opcode, operands: &[u16]) -> Vec<u8> {
     let def = op.definition();
 
     let mut instruction_len = 1;

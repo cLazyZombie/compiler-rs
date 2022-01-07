@@ -9,7 +9,7 @@ use crate::{
     token::IdentToken,
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Object {
     Null,
     Int(IntObject),
@@ -261,7 +261,7 @@ impl Display for StringObject {
         write!(f, "\"{}\"", self.val)
     }
 }
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReturnObject {
     pub val: Box<Object>,
 }
@@ -288,6 +288,16 @@ impl From<ReturnObject> for Object {
 pub struct FnObject {
     pub args: Vec<IdentToken>,
     pub body: Statement, // should be BlockStatement,
+}
+
+impl std::cmp::PartialEq for FnObject {
+    fn eq(&self, _other: &Self) -> bool {
+        false
+    }
+}
+
+impl std::cmp::Eq for FnObject {
+    fn assert_receiver_is_total_eq(&self) {}
 }
 
 impl Display for FnObject {
