@@ -4,8 +4,9 @@ use std::fmt::Display;
 
 use crate::token::{IdentToken, Token};
 
+#[derive(Debug)]
 pub struct Program {
-    statements: Vec<Statement>,
+    pub statements: Vec<Statement>,
 }
 
 impl Program {
@@ -32,8 +33,15 @@ impl Program {
 
 #[derive(Debug)]
 pub enum Node<'a> {
+    Program(&'a Program),
     Stmt(&'a Statement),
     Expr(&'a Expr),
+}
+
+impl<'a> From<&'a Program> for Node<'a> {
+    fn from(program: &'a Program) -> Self {
+        Node::Program(program)
+    }
 }
 
 impl<'a> From<&'a Statement> for Node<'a> {

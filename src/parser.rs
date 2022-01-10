@@ -56,13 +56,13 @@ impl Parser {
         self.cursor += 1;
     }
 
-    pub fn parse_program(mut self) -> Result<ast::Program, ParseError> {
+    pub fn parse(mut self) -> Result<ast::Program, ParseError> {
         let statements = self.parse_statements()?;
 
         Ok(ast::Program::new(statements))
     }
 
-    pub fn parse_statements(&mut self) -> Result<Vec<ast::Statement>, ParseError> {
+    fn parse_statements(&mut self) -> Result<Vec<ast::Statement>, ParseError> {
         let mut statements = Vec::new();
 
         while let Some(token) = self.cur_token() {
@@ -406,7 +406,7 @@ mod tests {
         let lexer = Lexer::new(input);
         let parser = Parser::new(lexer);
 
-        let program = parser.parse_program().unwrap();
+        let program = parser.parse().unwrap();
         assert_eq!(program.statement_count(), 1);
 
         check_let_statement(program.get_statement(0).unwrap(), "val");
@@ -418,7 +418,7 @@ mod tests {
         let lexer = Lexer::new(input);
         let parser = Parser::new(lexer);
 
-        let program = parser.parse_program().unwrap();
+        let program = parser.parse().unwrap();
         let let_stmt = get_let_statement(program.get_statement(0).unwrap()).unwrap();
 
         check_string_expr(&let_stmt.expr, "abc");
@@ -430,7 +430,7 @@ mod tests {
         let lexer = Lexer::new(input);
         let parser = Parser::new(lexer);
 
-        let program = parser.parse_program().unwrap();
+        let program = parser.parse().unwrap();
         assert_eq!(program.statement_count(), 1);
 
         check_return_statement(program.get_statement(0).unwrap());
@@ -449,7 +449,7 @@ mod tests {
         let input = "a;";
         let lexer = Lexer::new(input);
         let parser = Parser::new(lexer);
-        let program = parser.parse_program().unwrap();
+        let program = parser.parse().unwrap();
         assert_eq!(program.statement_count(), 1);
         check_expr_statement(program.get_statement(0).unwrap());
         assert_eq!(program.get_statement(0).unwrap().to_string(), "a;");
@@ -460,7 +460,7 @@ mod tests {
         let input = "6;";
         let lexer = Lexer::new(input);
         let parser = Parser::new(lexer);
-        let program = parser.parse_program().unwrap();
+        let program = parser.parse().unwrap();
 
         assert_eq!(program.statement_count(), 1);
         check_expr_statement(program.get_statement(0).unwrap());
@@ -476,7 +476,7 @@ mod tests {
 
         let lexer = Lexer::new(input);
         let parser = Parser::new(lexer);
-        let program = parser.parse_program().unwrap();
+        let program = parser.parse().unwrap();
         assert_eq!(program.get_statement(0).unwrap().to_string(), "let a = 10;");
         assert_eq!(program.get_statement(1).unwrap().to_string(), "a;");
         assert_eq!(program.get_statement(2).unwrap().to_string(), "return a;");
@@ -487,7 +487,7 @@ mod tests {
         let input = "1 + 2;";
         let lexer = Lexer::new(input);
         let parser = Parser::new(lexer);
-        let program = parser.parse_program().unwrap();
+        let program = parser.parse().unwrap();
         let expr_statement = get_expr_statement(program.get_statement(0).unwrap()).unwrap();
 
         let infix_expr = get_infix_expr(&expr_statement.expr).unwrap();
@@ -501,7 +501,7 @@ mod tests {
         let input = "1 + 2 - 3;";
         let lexer = Lexer::new(input);
         let parser = Parser::new(lexer);
-        let program = parser.parse_program().unwrap();
+        let program = parser.parse().unwrap();
         let expr_statement = get_expr_statement(program.get_statement(0).unwrap()).unwrap();
 
         let infix_expr = get_infix_expr(&expr_statement.expr).unwrap();
@@ -868,7 +868,7 @@ mod tests {
     fn input_to_statements(input: &str) -> Vec<Statement> {
         let lexer = Lexer::new(input);
         let parser = Parser::new(lexer);
-        let program = parser.parse_program().unwrap();
+        let program = parser.parse().unwrap();
         program.take_statement()
     }
 }

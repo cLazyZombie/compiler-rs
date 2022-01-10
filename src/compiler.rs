@@ -24,6 +24,11 @@ impl Compiler {
     pub fn compile<'a, N: Into<Node<'a>>>(&mut self, node: N) -> Result<(), CompileError> {
         let node: Node = node.into();
         match node {
+            ast::Node::Program(program) => {
+                for stmt in &program.statements {
+                    self.compile(stmt)?;
+                }
+            }
             ast::Node::Stmt(stmt) => match stmt {
                 ast::Statement::ExprStatement(expr_stmt) => self.compile(&expr_stmt.expr)?,
                 _ => todo!(),
@@ -71,7 +76,7 @@ pub fn compile(s: &str) -> Result<Bytecode, CompileError> {
 
     let lexer = Lexer::new(s);
     let parser = Parser::new(lexer);
-    let program = parser.parse_program().unwrap();
+    let program = parser.parse().unwrap();
     let stmts = program.take_statement();
     for stmt in &stmts {
         let node: Node = stmt.into();

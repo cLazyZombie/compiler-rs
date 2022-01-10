@@ -39,6 +39,15 @@ pub fn eval<'a, N: Into<Node<'a>>>(node: N, envi: &mut Environment) -> Result<Ob
     let node: Node = node.into();
 
     match node {
+        Node::Program(program) => {
+            let mut ret = Object::Null;
+
+            for stmt in &program.statements {
+                ret = eval(stmt, envi)?;
+            }
+
+            Ok(ret)
+        }
         Node::Stmt(stmt) => match stmt {
             Statement::ExprStatement(expr_stmt) => eval(&expr_stmt.expr, envi),
             Statement::BlockStatement(block_stmt) => {
@@ -431,16 +440,11 @@ mod tests {
 
     fn eval_input(input: &str) -> Object {
         let lexer = Lexer::new(input);
-        let mut parser = Parser::new(lexer);
-        let stmts = parser.parse_statements().unwrap();
-        // let stmt = stmts.remove(0);
+        let parser = Parser::new(lexer);
+        let program = parser.parse().unwrap();
         let mut envi = Environment::new();
 
-        let mut ret = Object::Null;
-
-        for stmt in stmts {
-            ret = eval(&stmt, &mut envi).unwrap();
-        }
-        ret
+        let obj = eval(&program, &mut envi).unwrap();
+        obj
     }
 }
