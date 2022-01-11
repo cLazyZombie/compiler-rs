@@ -6,6 +6,7 @@ use crate::{
     lexer::Lexer,
     object::{self, IntObject},
     parser::Parser,
+    token::Token,
 };
 
 pub struct Compiler {
@@ -42,6 +43,14 @@ impl Compiler {
                 ast::Expr::Infix(infix_expr) => {
                     self.compile(&*infix_expr.left)?;
                     self.compile(&*infix_expr.right)?;
+                    match &infix_expr.op {
+                        Token::Plus => {
+                            let _ins_idx = self.emit(code::Opcode::OpAdd, &[]);
+                        }
+                        _ => {
+                            panic!("not implemented op {}", infix_expr.op);
+                        }
+                    }
                 }
                 _ => {}
             },
@@ -127,6 +136,9 @@ pub fn disassemble(instructions: &code::Instructions) -> Result<String, Disassem
                 let (operands, operands_idx) = read_operand(&def, &instructions[idx..]);
 
                 match operands.len() {
+                    0 => {
+                        let _ = writeln!(&mut result, "{:04} {}", op_offset, def.name);
+                    }
                     1 => {
                         let _ =
                             writeln!(&mut result, "{:04} {} {}", op_offset, def.name, operands[0]);
@@ -163,6 +175,7 @@ fn read_operand(def: &code::Definition, ins: &[u8]) -> (Vec<i32>, i32) {
 mod tests {
     use crate::{
         code::Opcode,
+        compiler::disassemble,
         object::{IntObject, Object},
     };
 
@@ -175,10 +188,14 @@ mod tests {
         instructions.append(&mut code::make(Opcode::OpConstant, &[1]));
         instructions.append(&mut code::make(Opcode::OpConstant, &[2]));
         instructions.append(&mut code::make(Opcode::OpConstant, &[65535]));
+        instructions.append(&mut code::make(Opcode::OpAdd, &[]));
+        instructions.append(&mut code::make(Opcode::OpAdd, &[]));
 
         let expected = r#"0000 OpConstant 1
 0003 OpConstant 2
 0006 OpConstant 65535
+0009 OpAdd
+0010 OpAdd
 "#;
 
         assert_eq!(disassemble(&instructions).unwrap(), expected);
@@ -197,6 +214,7 @@ mod tests {
                 &[
                     code::make(Opcode::OpConstant, &[0]),
                     code::make(Opcode::OpConstant, &[1]),
+                    code::make(Opcode::OpAdd, &[]),
                 ],
             ),
         ];
@@ -211,6 +229,13 @@ mod tests {
     fn check_instructions_eq(ins: &Vec<u8>, other: &[Vec<u8>]) {
         // let joined = other.iter().flatten().collect::<Vec<_>>();
         let joined = other.iter().flat_map(|v| v.clone()).collect::<Vec<_>>();
-        assert_eq!(ins, &joined);
+
+        assert_eq!(
+            ins,
+            &joined,
+            "{:?} != {:?}",
+            disassemble(ins).unwrap(),
+            disassemble(&joined).unwrap()
+        )
     }
 }

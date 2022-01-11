@@ -12,6 +12,7 @@ pub type Instructions = Vec<u8>;
 #[derive(Clone, Copy, TryFromPrimitive)]
 pub enum Opcode {
     OpConstant,
+    OpAdd,
 }
 
 impl Opcode {
@@ -21,6 +22,10 @@ impl Opcode {
             Opcode::OpConstant => Definition {
                 name: "OpConstant".to_string(),
                 operand_widths: vec![2],
+            },
+            Opcode::OpAdd => Definition {
+                name: "OpAdd".to_string(),
+                operand_widths: Vec::new(),
             },
         }
     }
@@ -69,14 +74,14 @@ mod tests {
     #[test]
     fn test_make() {
         // opcode, operands, expected instructions
-        let tests = [(
-            Opcode::OpConstant,
-            &[65534],
-            &[Opcode::OpConstant as u8, 255_u8, 254_u8],
-        )];
+        #[rustfmt::skip]
+        let tests = [
+            ( Opcode::OpConstant, vec![65534_u16], vec![Opcode::OpConstant as u8, 255_u8, 254_u8]),
+            ( Opcode::OpAdd, vec![], vec![Opcode::OpAdd as u8]),
+        ];
 
         for t in tests {
-            let instruction = make(t.0, t.1);
+            let instruction = make(t.0, &t.1);
             assert_eq!(instruction, t.2);
         }
     }
