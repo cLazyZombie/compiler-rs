@@ -12,6 +12,8 @@ pub struct Vm {
     instructions: code::Instructions,
     stack: Vec<Object>,
     sp: usize,
+    #[cfg(test)]
+    pub last_popped_stack_element: Object,
 }
 
 impl Vm {
@@ -23,6 +25,8 @@ impl Vm {
             instructions: bytecode.instructions,
             stack: vec![Object::Null; Self::STACK_SIZE],
             sp: 0,
+            #[cfg(test)]
+            last_popped_stack_element: Object::default(),
         }
     }
 
@@ -59,6 +63,9 @@ impl Vm {
                         (left, right) => panic!("left: {:?}, right: {:?}", left, right),
                     }
                 }
+                code::Opcode::OpPop => {
+                    self.pop().unwrap();
+                }
             }
         }
         Ok(())
@@ -77,19 +84,19 @@ impl Vm {
 
     fn pop(&mut self) -> Option<Object> {
         if self.sp == 0 {
+            #[cfg(test)]
+            {
+                self.last_popped_stack_element = Object::Null;
+            }
             None
         } else {
             let obj = std::mem::take(&mut self.stack[self.sp - 1]);
+            #[cfg(test)]
+            {
+                self.last_popped_stack_element = obj.clone();
+            }
             self.sp -= 1;
             Some(obj)
-        }
-    }
-
-    pub fn stack_top(&self) -> &Object {
-        if self.sp == 0 {
-            &Object::Null
-        } else {
-            &self.stack[self.sp - 1]
         }
     }
 }
@@ -127,8 +134,6 @@ mod test {
         let mut vm = Vm::new(bytecode);
         vm.run().unwrap();
 
-        let top = vm.stack_top();
-
-        assert_eq!(top, expected);
+        assert_eq!(&vm.last_popped_stack_element, expected);
     }
 }

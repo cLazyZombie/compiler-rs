@@ -2,7 +2,7 @@ use byteorder::{BigEndian, ByteOrder};
 use num_enum::TryFromPrimitive;
 
 pub struct Definition {
-    pub name: String,
+    pub name: &'static str,
     pub operand_widths: Vec<i32>,
 }
 
@@ -13,6 +13,7 @@ pub type Instructions = Vec<u8>;
 pub enum Opcode {
     OpConstant,
     OpAdd,
+    OpPop,
 }
 
 impl Opcode {
@@ -20,11 +21,15 @@ impl Opcode {
     pub fn definition(&self) -> Definition {
         match self {
             Opcode::OpConstant => Definition {
-                name: "OpConstant".to_string(),
+                name: "OpConstant",
                 operand_widths: vec![2],
             },
             Opcode::OpAdd => Definition {
-                name: "OpAdd".to_string(),
+                name: "OpAdd",
+                operand_widths: Vec::new(),
+            },
+            Opcode::OpPop => Definition {
+                name: "OpPop",
                 operand_widths: Vec::new(),
             },
         }
@@ -78,6 +83,7 @@ mod tests {
         let tests = [
             ( Opcode::OpConstant, vec![65534_u16], vec![Opcode::OpConstant as u8, 255_u8, 254_u8]),
             ( Opcode::OpAdd, vec![], vec![Opcode::OpAdd as u8]),
+            ( Opcode::OpPop, vec![], vec![Opcode::OpPop as u8]),
         ];
 
         for t in tests {

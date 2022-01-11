@@ -2,7 +2,7 @@ use byteorder::{BigEndian, ByteOrder};
 
 use crate::{
     ast::{self, Node},
-    code,
+    code::{self, Opcode},
     lexer::Lexer,
     object::{self, IntObject},
     parser::Parser,
@@ -31,7 +31,10 @@ impl Compiler {
                 }
             }
             ast::Node::Stmt(stmt) => match stmt {
-                ast::Statement::ExprStatement(expr_stmt) => self.compile(&expr_stmt.expr)?,
+                ast::Statement::ExprStatement(expr_stmt) => {
+                    self.compile(&expr_stmt.expr)?;
+                    self.emit(Opcode::OpPop, &[]);
+                }
                 _ => todo!(),
             },
             ast::Node::Expr(expr) => match expr {
@@ -215,6 +218,7 @@ mod tests {
                     code::make(Opcode::OpConstant, &[0]),
                     code::make(Opcode::OpConstant, &[1]),
                     code::make(Opcode::OpAdd, &[]),
+                    code::make(Opcode::OpPop, &[]),
                 ],
             ),
         ];
