@@ -96,6 +96,19 @@ impl Compiler {
                         panic!("not implemented op {}", infix_expr.op);
                     }
                 },
+                ast::Expr::Prefix(prefix_expr) => match prefix_expr.op {
+                    Token::Minus => {
+                        self.compile(&*prefix_expr.exp)?;
+                        self.emit(Opcode::OpNegate, &[]);
+                    }
+                    Token::Bang => {
+                        self.compile(&*prefix_expr.exp)?;
+                        self.emit(Opcode::OpBang, &[]);
+                    }
+                    _ => {
+                        panic!("not implemented op {}", prefix_expr.op);
+                    }
+                },
                 _ => {}
             },
         }
@@ -239,6 +252,8 @@ mod tests {
         instructions.append(&mut code::make(Opcode::OpEqual, &[]));
         instructions.append(&mut code::make(Opcode::OpNotEqual, &[]));
         instructions.append(&mut code::make(Opcode::OpGreaterThan, &[]));
+        instructions.append(&mut code::make(Opcode::OpNegate, &[]));
+        instructions.append(&mut code::make(Opcode::OpBang, &[]));
 
         let expected = r#"0000 OpConstant 1
 0003 OpConstant 2
@@ -250,6 +265,8 @@ mod tests {
 0013 OpEqual
 0014 OpNotEqual
 0015 OpGreaterThan
+0016 OpNegate
+0017 OpBang
 "#;
 
         assert_eq!(disassemble(&instructions).unwrap(), expected);
@@ -260,24 +277,33 @@ mod tests {
         let cases = [
             // input, constants, expected instructions(
             (
-                "1 + 2".to_string(),
-                &[
+                "1 + 2",
+                vec![
                     Object::Int(IntObject::new(1)),
                     Object::Int(IntObject::new(2)),
                 ],
-                &[
+                vec![
                     code::make(Opcode::OpConstant, &[0]),
                     code::make(Opcode::OpConstant, &[1]),
                     code::make(Opcode::OpAdd, &[]),
                     code::make(Opcode::OpPop, &[]),
                 ],
             ),
+            (
+                "-1",
+                vec![Object::Int(IntObject::new(1))],
+                vec![
+                    code::make(Opcode::OpConstant, &[0]),
+                    code::make(Opcode::OpNegate, &[]),
+                    code::make(Opcode::OpPop, &[]),
+                ],
+            ),
         ];
 
         for (input, constants, expected) in cases {
-            let bytecode = compile(&input).unwrap();
-            assert_eq!(&bytecode.constants, constants);
-            check_instructions_eq(&bytecode.instructions, expected);
+            let bytecode = compile(input).unwrap();
+            assert_eq!(&bytecode.constants, &constants);
+            check_instructions_eq(&bytecode.instructions, &expected);
         }
     }
 
@@ -367,6 +393,15 @@ mod tests {
                     code::make(Opcode::OpPop, &[]),
                 ],
             ),
+            (
+                "!true",
+                vec![],
+                vec![
+                    code::make(Opcode::OpTrue, &[]),
+                    code::make(Opcode::OpBang, &[]),
+                    code::make(Opcode::OpPop, &[]),
+                ],
+            )
         ];
 
         for (input, constants, expected) in cases {

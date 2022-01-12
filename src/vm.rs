@@ -159,6 +159,22 @@ impl Vm {
                         }
                     }
                 }
+                Opcode::OpNegate => {
+                    if let Some(operand) = self.pop() {
+                        if let Some(negated) = operand.negate() {
+                            self.push(negated)?;
+                        } else {
+                            self.push(Object::Bool(BoolObject::new(false)))?;
+                        }
+                    }
+                }
+                Opcode::OpBang => {
+                    if let Some(operand) = self.pop() {
+                        if let Some(banged) = operand.bang() {
+                            self.push(banged)?;
+                        }
+                    }
+                }
             }
         }
         Ok(())
@@ -220,6 +236,7 @@ mod test {
             ("1 + 2 * 3", Object::Int(IntObject::new(7))),
             ("1 * 2 + 3", Object::Int(IntObject::new(5))),
             ("(1 + 2) * 3", Object::Int(IntObject::new(9))),
+            ("(-1 + 2) * -3", Object::Int(IntObject::new(-3))),
         ];
 
         for (i, expected) in input {
@@ -244,6 +261,9 @@ mod test {
             ("true != false", Object::Bool(BoolObject::new(true))),
             ("(1 < 2) == true", Object::Bool(BoolObject::new(true))),
             ("(1 < 2) == false", Object::Bool(BoolObject::new(false))),
+            ("!true", Object::Bool(BoolObject::new(false))),
+            ("!!true", Object::Bool(BoolObject::new(true))),
+            ("!false", Object::Bool(BoolObject::new(true))),
         ];
 
         for (i, expected) in input {

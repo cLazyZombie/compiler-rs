@@ -125,19 +125,19 @@ pub fn eval<'a, N: Into<Node<'a>>>(node: N, envi: &mut Environment) -> Result<Ob
                 let right = eval(&*infix_expr.right, envi)?;
                 match infix_expr.op {
                     Token::Plus => {
-                        let value = left.plus(&right).ok_or(EvalError::Todo)?;
+                        let value = left.add(&right).ok_or(EvalError::Todo)?;
                         Ok(value)
                     }
                     Token::Minus => {
-                        let value = left.minus(&right).ok_or(EvalError::Todo)?;
+                        let value = left.sub(&right).ok_or(EvalError::Todo)?;
                         Ok(value)
                     }
                     Token::Asterrisk => {
-                        let value = left.asterrisk(&right).ok_or(EvalError::Todo)?;
+                        let value = left.mul(&right).ok_or(EvalError::Todo)?;
                         Ok(value)
                     }
                     Token::Slash => {
-                        let value = left.slash(&right).ok_or(EvalError::Todo)?;
+                        let value = left.div(&right).ok_or(EvalError::Todo)?;
                         Ok(value)
                     }
                     Token::Eq => {

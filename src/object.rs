@@ -20,28 +20,28 @@ pub enum Object {
 }
 
 impl Object {
-    pub fn plus(&self, rhs: &Self) -> Option<Object> {
+    pub fn add(&self, rhs: &Self) -> Option<Object> {
         match (self, rhs) {
             (Object::Int(lhs), Object::Int(rhs)) => Some((lhs + rhs).into()),
             _ => None,
         }
     }
 
-    pub fn minus(&self, rhs: &Self) -> Option<Object> {
+    pub fn sub(&self, rhs: &Self) -> Option<Object> {
         match (self, rhs) {
             (Object::Int(lhs), Object::Int(rhs)) => Some((lhs - rhs).into()),
             _ => None,
         }
     }
 
-    pub fn asterrisk(&self, rhs: &Self) -> Option<Object> {
+    pub fn mul(&self, rhs: &Self) -> Option<Object> {
         match (self, rhs) {
             (Object::Int(lhs), Object::Int(rhs)) => Some((lhs * rhs).into()),
             _ => None,
         }
     }
 
-    pub fn slash(&self, rhs: &Self) -> Option<Object> {
+    pub fn div(&self, rhs: &Self) -> Option<Object> {
         match (self, rhs) {
             (Object::Int(lhs), Object::Int(rhs)) => Some((lhs / rhs).into()),
             _ => None,
@@ -91,6 +91,20 @@ impl Object {
     pub fn gt_eq(&self, rhs: &Self) -> Option<Object> {
         match (self, rhs) {
             (Object::Int(lhs), Object::Int(rhs)) => Some(Object::Bool(BoolObject::new(lhs >= rhs))),
+            _ => None,
+        }
+    }
+
+    pub fn negate(&self) -> Option<Object> {
+        match self {
+            Object::Int(int_obj) => Some(Object::Int(int_obj.negate())),
+            _ => None,
+        }
+    }
+
+    pub fn bang(&self) -> Option<Object> {
+        match self {
+            Object::Bool(bool_obj) => Some(Object::Bool(bool_obj.bang())),
             _ => None,
         }
     }

@@ -22,6 +22,8 @@ pub enum Opcode {
     OpEqual,
     OpNotEqual,
     OpGreaterThan,
+    OpNegate, // - prefix
+    OpBang,   // ! prefix
 }
 
 impl Opcode {
@@ -70,6 +72,14 @@ impl Opcode {
             },
             Opcode::OpGreaterThan => Definition {
                 name: "OpGreaterThan",
+                operand_widths: Vec::new(),
+            },
+            Opcode::OpNegate => Definition {
+                name: "OpNegate",
+                operand_widths: Vec::new(),
+            },
+            Opcode::OpBang => Definition {
+                name: "OpBang",
                 operand_widths: Vec::new(),
             },
         }
@@ -132,6 +142,8 @@ mod tests {
             ( Opcode::OpEqual, vec![], vec![Opcode::OpEqual as u8]),
             ( Opcode::OpNotEqual, vec![], vec![Opcode::OpNotEqual as u8]),
             ( Opcode::OpGreaterThan, vec![], vec![Opcode::OpGreaterThan as u8]),
+            ( Opcode::OpNegate, vec![], vec![Opcode::OpNegate as u8]),
+            ( Opcode::OpBang, vec![], vec![Opcode::OpBang as u8]),
         ];
 
         for t in tests {
