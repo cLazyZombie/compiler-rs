@@ -43,6 +43,13 @@ impl Compiler {
                     let const_idx = self.add_constant(num_obj);
                     let _ins_idx = self.emit(Opcode::OpConstant, &[const_idx]);
                 }
+                ast::Expr::Bool(bool_expr) => {
+                    if bool_expr.value {
+                        self.emit(Opcode::OpTrue, &[]);
+                    } else {
+                        self.emit(Opcode::OpFalse, &[]);
+                    }
+                }
                 ast::Expr::Infix(infix_expr) => {
                     self.compile(&*infix_expr.left)?;
                     self.compile(&*infix_expr.right)?;
@@ -234,6 +241,21 @@ mod tests {
                     code::make(Opcode::OpPop, &[]),
                 ],
             ),
+        ];
+
+        for (input, constants, expected) in cases {
+            let bytecode = compile(&input).unwrap();
+            assert_eq!(&bytecode.constants, constants);
+            check_instructions_eq(&bytecode.instructions, expected);
+        }
+    }
+
+    #[test]
+    fn boolean() {
+        #[rustfmt::skip]
+        let cases = [
+            ("true;", &[], &[code::make(Opcode::OpTrue, &[]), code::make(Opcode::OpPop, &[])]),
+            ("false;", &[], &[code::make(Opcode::OpFalse, &[]), code::make(Opcode::OpPop, &[])]),
         ];
 
         for (input, constants, expected) in cases {

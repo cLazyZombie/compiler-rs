@@ -2,9 +2,9 @@ use byteorder::{BigEndian, ByteOrder};
 use num_enum::TryFromPrimitive;
 
 use crate::{
-    code,
+    code::{self, Opcode},
     compiler::Bytecode,
-    object::{IntObject, Object},
+    object::{BoolObject, IntObject, Object},
 };
 
 pub struct Vm {
@@ -102,6 +102,12 @@ impl Vm {
                 code::Opcode::OpPop => {
                     self.pop().unwrap();
                 }
+                Opcode::OpTrue => {
+                    self.push(Object::Bool(BoolObject::new(true)))?;
+                }
+                Opcode::OpFalse => {
+                    self.push(Object::Bool(BoolObject::new(false)))?;
+                }
             }
         }
         Ok(())
@@ -163,6 +169,18 @@ mod test {
             ("1 + 2 * 3", Object::Int(IntObject::new(7))),
             ("1 * 2 + 3", Object::Int(IntObject::new(5))),
             ("(1 + 2) * 3", Object::Int(IntObject::new(9))),
+        ];
+
+        for (i, expected) in input {
+            vm_test(i, &expected);
+        }
+    }
+
+    #[test]
+    fn boolean_arithmetic() {
+        let input = [
+            ("true", Object::Bool(BoolObject::new(true))),
+            ("false", Object::Bool(BoolObject::new(false))),
         ];
 
         for (i, expected) in input {
