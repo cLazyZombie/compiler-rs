@@ -52,12 +52,48 @@ impl Vm {
                     self.push(self.constants[const_index as usize].clone())?;
                 }
                 code::Opcode::OpAdd => {
-                    let left = self.pop();
                     let right = self.pop();
+                    let left = self.pop();
 
                     match (left, right) {
                         (Some(Object::Int(left)), Some(Object::Int(right))) => {
                             let add_object = Object::Int(IntObject::new(left.val + right.val));
+                            self.push(add_object)?;
+                        }
+                        (left, right) => panic!("left: {:?}, right: {:?}", left, right),
+                    }
+                }
+                code::Opcode::OpSub => {
+                    let right = self.pop();
+                    let left = self.pop();
+
+                    match (left, right) {
+                        (Some(Object::Int(left)), Some(Object::Int(right))) => {
+                            let add_object = Object::Int(IntObject::new(left.val - right.val));
+                            self.push(add_object)?;
+                        }
+                        (left, right) => panic!("left: {:?}, right: {:?}", left, right),
+                    }
+                }
+                code::Opcode::OpMul => {
+                    let right = self.pop();
+                    let left = self.pop();
+
+                    match (left, right) {
+                        (Some(Object::Int(left)), Some(Object::Int(right))) => {
+                            let add_object = Object::Int(IntObject::new(left.val * right.val));
+                            self.push(add_object)?;
+                        }
+                        (left, right) => panic!("left: {:?}, right: {:?}", left, right),
+                    }
+                }
+                code::Opcode::OpDiv => {
+                    let right = self.pop();
+                    let left = self.pop();
+
+                    match (left, right) {
+                        (Some(Object::Int(left)), Some(Object::Int(right))) => {
+                            let add_object = Object::Int(IntObject::new(left.val / right.val));
                             self.push(add_object)?;
                         }
                         (left, right) => panic!("left: {:?}, right: {:?}", left, right),
@@ -121,6 +157,9 @@ mod test {
             ("1", Object::Int(IntObject::new(1))),
             ("2", Object::Int(IntObject::new(2))),
             ("1 + 2", Object::Int(IntObject::new(3))),
+            ("1 - 2", Object::Int(IntObject::new(-1))),
+            ("2 * 3", Object::Int(IntObject::new(6))),
+            ("6 / 3", Object::Int(IntObject::new(2))),
         ];
 
         for (i, expected) in input {

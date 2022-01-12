@@ -41,14 +41,23 @@ impl Compiler {
                 ast::Expr::Number(num_expr) => {
                     let num_obj = object::Object::Int(IntObject::new(num_expr.value));
                     let const_idx = self.add_constant(num_obj);
-                    let _ins_idx = self.emit(code::Opcode::OpConstant, &[const_idx]);
+                    let _ins_idx = self.emit(Opcode::OpConstant, &[const_idx]);
                 }
                 ast::Expr::Infix(infix_expr) => {
                     self.compile(&*infix_expr.left)?;
                     self.compile(&*infix_expr.right)?;
                     match &infix_expr.op {
                         Token::Plus => {
-                            let _ins_idx = self.emit(code::Opcode::OpAdd, &[]);
+                            let _ins_idx = self.emit(Opcode::OpAdd, &[]);
+                        }
+                        Token::Minus => {
+                            let _inx_idx = self.emit(Opcode::OpSub, &[]);
+                        }
+                        Token::Asterrisk => {
+                            let _inx_idx = self.emit(Opcode::OpMul, &[]);
+                        }
+                        Token::Slash => {
+                            let _inx_idx = self.emit(Opcode::OpDiv, &[]);
                         }
                         _ => {
                             panic!("not implemented op {}", infix_expr.op);
@@ -192,13 +201,17 @@ mod tests {
         instructions.append(&mut code::make(Opcode::OpConstant, &[2]));
         instructions.append(&mut code::make(Opcode::OpConstant, &[65535]));
         instructions.append(&mut code::make(Opcode::OpAdd, &[]));
-        instructions.append(&mut code::make(Opcode::OpAdd, &[]));
+        instructions.append(&mut code::make(Opcode::OpSub, &[]));
+        instructions.append(&mut code::make(Opcode::OpMul, &[]));
+        instructions.append(&mut code::make(Opcode::OpDiv, &[]));
 
         let expected = r#"0000 OpConstant 1
 0003 OpConstant 2
 0006 OpConstant 65535
 0009 OpAdd
-0010 OpAdd
+0010 OpSub
+0011 OpMul
+0012 OpDiv
 "#;
 
         assert_eq!(disassemble(&instructions).unwrap(), expected);

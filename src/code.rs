@@ -13,6 +13,9 @@ pub type Instructions = Vec<u8>;
 pub enum Opcode {
     OpConstant,
     OpAdd,
+    OpSub,
+    OpMul,
+    OpDiv,
     OpPop,
 }
 
@@ -26,6 +29,18 @@ impl Opcode {
             },
             Opcode::OpAdd => Definition {
                 name: "OpAdd",
+                operand_widths: Vec::new(),
+            },
+            Opcode::OpSub => Definition {
+                name: "OpSub",
+                operand_widths: Vec::new(),
+            },
+            Opcode::OpMul => Definition {
+                name: "OpMul",
+                operand_widths: Vec::new(),
+            },
+            Opcode::OpDiv => Definition {
+                name: "OpDiv",
                 operand_widths: Vec::new(),
             },
             Opcode::OpPop => Definition {
@@ -83,6 +98,9 @@ mod tests {
         let tests = [
             ( Opcode::OpConstant, vec![65534_u16], vec![Opcode::OpConstant as u8, 255_u8, 254_u8]),
             ( Opcode::OpAdd, vec![], vec![Opcode::OpAdd as u8]),
+            ( Opcode::OpSub, vec![], vec![Opcode::OpSub as u8]),
+            ( Opcode::OpMul, vec![], vec![Opcode::OpMul as u8]),
+            ( Opcode::OpDiv, vec![], vec![Opcode::OpDiv as u8]),
             ( Opcode::OpPop, vec![], vec![Opcode::OpPop as u8]),
         ];
 
