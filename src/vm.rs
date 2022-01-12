@@ -160,6 +160,9 @@ mod test {
             ("1 - 2", Object::Int(IntObject::new(-1))),
             ("2 * 3", Object::Int(IntObject::new(6))),
             ("6 / 3", Object::Int(IntObject::new(2))),
+            ("1 + 2 * 3", Object::Int(IntObject::new(7))),
+            ("1 * 2 + 3", Object::Int(IntObject::new(5))),
+            ("(1 + 2) * 3", Object::Int(IntObject::new(9))),
         ];
 
         for (i, expected) in input {
