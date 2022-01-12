@@ -19,6 +19,9 @@ pub enum Opcode {
     OpPop,
     OpTrue,
     OpFalse,
+    OpEqual,
+    OpNotEqual,
+    OpGreaterThan,
 }
 
 impl Opcode {
@@ -55,6 +58,18 @@ impl Opcode {
             },
             Opcode::OpFalse => Definition {
                 name: "OpFalse",
+                operand_widths: Vec::new(),
+            },
+            Opcode::OpEqual => Definition {
+                name: "OpEqual",
+                operand_widths: Vec::new(),
+            },
+            Opcode::OpNotEqual => Definition {
+                name: "OpNotEqual",
+                operand_widths: Vec::new(),
+            },
+            Opcode::OpGreaterThan => Definition {
+                name: "OpGreaterThan",
                 operand_widths: Vec::new(),
             },
         }
@@ -114,6 +129,9 @@ mod tests {
             ( Opcode::OpPop, vec![], vec![Opcode::OpPop as u8]),
             ( Opcode::OpTrue, vec![], vec![Opcode::OpTrue as u8]),
             ( Opcode::OpFalse, vec![], vec![Opcode::OpFalse as u8]),
+            ( Opcode::OpEqual, vec![], vec![Opcode::OpEqual as u8]),
+            ( Opcode::OpNotEqual, vec![], vec![Opcode::OpNotEqual as u8]),
+            ( Opcode::OpGreaterThan, vec![], vec![Opcode::OpGreaterThan as u8]),
         ];
 
         for t in tests {

@@ -108,6 +108,57 @@ impl Vm {
                 Opcode::OpFalse => {
                     self.push(Object::Bool(BoolObject::new(false)))?;
                 }
+                Opcode::OpEqual => {
+                    let right = self.pop();
+                    let left = self.pop();
+
+                    match (left, right) {
+                        (Some(left), Some(right)) => {
+                            if let Some(Object::Bool(bool_obj)) = left.eq(&right) {
+                                self.push(Object::Bool(BoolObject::new(bool_obj.val)))?;
+                            } else {
+                                self.push(Object::Bool(BoolObject::new(false)))?;
+                            }
+                        }
+                        _ => {
+                            self.push(Object::Bool(BoolObject::new(false)))?;
+                        }
+                    }
+                }
+                Opcode::OpNotEqual => {
+                    let right = self.pop();
+                    let left = self.pop();
+
+                    match (left, right) {
+                        (Some(left), Some(right)) => {
+                            if let Some(Object::Bool(bool_obj)) = left.eq(&right) {
+                                self.push(Object::Bool(BoolObject::new(!bool_obj.val)))?;
+                            } else {
+                                self.push(Object::Bool(BoolObject::new(true)))?;
+                            }
+                        }
+                        _ => {
+                            self.push(Object::Bool(BoolObject::new(false)))?;
+                        }
+                    }
+                }
+                Opcode::OpGreaterThan => {
+                    let right = self.pop();
+                    let left = self.pop();
+
+                    match (left, right) {
+                        (Some(left), Some(right)) => {
+                            if let Some(Object::Bool(bool_obj)) = left.gt(&right) {
+                                self.push(Object::Bool(BoolObject::new(bool_obj.val)))?;
+                            } else {
+                                self.push(Object::Bool(BoolObject::new(false)))?;
+                            }
+                        }
+                        _ => {
+                            self.push(Object::Bool(BoolObject::new(false)))?;
+                        }
+                    }
+                }
             }
         }
         Ok(())
@@ -181,6 +232,18 @@ mod test {
         let input = [
             ("true", Object::Bool(BoolObject::new(true))),
             ("false", Object::Bool(BoolObject::new(false))),
+            ("2 > 1", Object::Bool(BoolObject::new(true))),
+            ("1 < 2", Object::Bool(BoolObject::new(true))),
+            ("1 > 2", Object::Bool(BoolObject::new(false))),
+            ("1 > 1", Object::Bool(BoolObject::new(false))),
+            ("1 == 1", Object::Bool(BoolObject::new(true))),
+            ("1 != 1", Object::Bool(BoolObject::new(false))),
+            ("true == true", Object::Bool(BoolObject::new(true))),
+            ("false == false", Object::Bool(BoolObject::new(true))),
+            ("true != true", Object::Bool(BoolObject::new(false))),
+            ("true != false", Object::Bool(BoolObject::new(true))),
+            ("(1 < 2) == true", Object::Bool(BoolObject::new(true))),
+            ("(1 < 2) == false", Object::Bool(BoolObject::new(false))),
         ];
 
         for (i, expected) in input {
@@ -190,10 +253,18 @@ mod test {
 
     fn vm_test(s: &str, expected: &Object) {
         let bytecode = compiler::compile(s).unwrap();
+        let disassembled = compiler::disassemble(&bytecode.instructions).unwrap();
 
         let mut vm = Vm::new(bytecode);
         vm.run().unwrap();
 
-        assert_eq!(&vm.last_popped_stack_element, expected);
+        assert_eq!(
+            &vm.last_popped_stack_element,
+            expected,
+            "input: {}, asm: {}, expected: {}",
+            s,
+            disassembled,
+            expected.to_string()
+        );
     }
 }

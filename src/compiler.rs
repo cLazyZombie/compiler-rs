@@ -50,27 +50,52 @@ impl Compiler {
                         self.emit(Opcode::OpFalse, &[]);
                     }
                 }
-                ast::Expr::Infix(infix_expr) => {
-                    self.compile(&*infix_expr.left)?;
-                    self.compile(&*infix_expr.right)?;
-                    match &infix_expr.op {
-                        Token::Plus => {
-                            let _ins_idx = self.emit(Opcode::OpAdd, &[]);
-                        }
-                        Token::Minus => {
-                            let _inx_idx = self.emit(Opcode::OpSub, &[]);
-                        }
-                        Token::Asterrisk => {
-                            let _inx_idx = self.emit(Opcode::OpMul, &[]);
-                        }
-                        Token::Slash => {
-                            let _inx_idx = self.emit(Opcode::OpDiv, &[]);
-                        }
-                        _ => {
-                            panic!("not implemented op {}", infix_expr.op);
-                        }
+                ast::Expr::Infix(infix_expr) => match &infix_expr.op {
+                    Token::Plus => {
+                        self.compile(&*infix_expr.left)?;
+                        self.compile(&*infix_expr.right)?;
+                        let _ins_idx = self.emit(Opcode::OpAdd, &[]);
                     }
-                }
+                    Token::Minus => {
+                        self.compile(&*infix_expr.left)?;
+                        self.compile(&*infix_expr.right)?;
+                        let _inx_idx = self.emit(Opcode::OpSub, &[]);
+                    }
+                    Token::Asterrisk => {
+                        self.compile(&*infix_expr.left)?;
+                        self.compile(&*infix_expr.right)?;
+                        let _inx_idx = self.emit(Opcode::OpMul, &[]);
+                    }
+                    Token::Slash => {
+                        self.compile(&*infix_expr.left)?;
+                        self.compile(&*infix_expr.right)?;
+                        let _inx_idx = self.emit(Opcode::OpDiv, &[]);
+                    }
+                    Token::GT => {
+                        self.compile(&*infix_expr.left)?;
+                        self.compile(&*infix_expr.right)?;
+                        self.emit(Opcode::OpGreaterThan, &[]);
+                    }
+                    Token::LT => {
+                        // LT 은 GT의 인자 위치만 바꿈
+                        self.compile(&*infix_expr.right)?;
+                        self.compile(&*infix_expr.left)?;
+                        self.emit(Opcode::OpGreaterThan, &[]);
+                    }
+                    Token::Eq => {
+                        self.compile(&*infix_expr.left)?;
+                        self.compile(&*infix_expr.right)?;
+                        self.emit(Opcode::OpEqual, &[]);
+                    }
+                    Token::NotEq => {
+                        self.compile(&*infix_expr.left)?;
+                        self.compile(&*infix_expr.right)?;
+                        self.emit(Opcode::OpNotEqual, &[]);
+                    }
+                    _ => {
+                        panic!("not implemented op {}", infix_expr.op);
+                    }
+                },
                 _ => {}
             },
         }
@@ -211,6 +236,9 @@ mod tests {
         instructions.append(&mut code::make(Opcode::OpSub, &[]));
         instructions.append(&mut code::make(Opcode::OpMul, &[]));
         instructions.append(&mut code::make(Opcode::OpDiv, &[]));
+        instructions.append(&mut code::make(Opcode::OpEqual, &[]));
+        instructions.append(&mut code::make(Opcode::OpNotEqual, &[]));
+        instructions.append(&mut code::make(Opcode::OpGreaterThan, &[]));
 
         let expected = r#"0000 OpConstant 1
 0003 OpConstant 2
@@ -219,6 +247,9 @@ mod tests {
 0010 OpSub
 0011 OpMul
 0012 OpDiv
+0013 OpEqual
+0014 OpNotEqual
+0015 OpGreaterThan
 "#;
 
         assert_eq!(disassemble(&instructions).unwrap(), expected);
@@ -254,14 +285,94 @@ mod tests {
     fn boolean() {
         #[rustfmt::skip]
         let cases = [
-            ("true;", &[], &[code::make(Opcode::OpTrue, &[]), code::make(Opcode::OpPop, &[])]),
-            ("false;", &[], &[code::make(Opcode::OpFalse, &[]), code::make(Opcode::OpPop, &[])]),
+            (
+                "true;", 
+                vec![], 
+                vec![code::make(Opcode::OpTrue, &[]), code::make(Opcode::OpPop, &[])]
+            ),
+            (
+                "false;", 
+                vec![], 
+                vec![code::make(Opcode::OpFalse, &[]), code::make(Opcode::OpPop, &[])]
+            ),
+            (
+                "1 > 2",
+                vec![
+                    Object::Int(IntObject::new(1)),
+                    Object::Int(IntObject::new(2)),
+                ],
+                vec![
+                    code::make(Opcode::OpConstant, &[0]),
+                    code::make(Opcode::OpConstant, &[1]),
+                    code::make(Opcode::OpGreaterThan, &[]),
+                    code::make(Opcode::OpPop, &[]),
+                ],
+            ),
+            (
+                "1 < 2",
+                vec![
+                    Object::Int(IntObject::new(2)),
+                    Object::Int(IntObject::new(1)),
+                ],
+                vec![
+                    code::make(Opcode::OpConstant, &[0]),
+                    code::make(Opcode::OpConstant, &[1]),
+                    code::make(Opcode::OpGreaterThan, &[]),
+                    code::make(Opcode::OpPop, &[]),
+                ],
+            ),
+            (
+                "1 == 2",
+                vec![
+                    Object::Int(IntObject::new(1)),
+                    Object::Int(IntObject::new(2)),
+                ],
+                vec![
+                    code::make(Opcode::OpConstant, &[0]),
+                    code::make(Opcode::OpConstant, &[1]),
+                    code::make(Opcode::OpEqual, &[]),
+                    code::make(Opcode::OpPop, &[]),
+                ],
+            ),
+            (
+                "1 != 2",
+                vec![
+                    Object::Int(IntObject::new(1)),
+                    Object::Int(IntObject::new(2)),
+                ],
+                vec![
+                    code::make(Opcode::OpConstant, &[0]),
+                    code::make(Opcode::OpConstant, &[1]),
+                    code::make(Opcode::OpNotEqual, &[]),
+                    code::make(Opcode::OpPop, &[]),
+                ],
+            ),
+            (
+                "true == false",
+                vec![],
+                vec![
+                    code::make(Opcode::OpTrue, &[]),
+                    code::make(Opcode::OpFalse, &[]),
+                    code::make(Opcode::OpEqual, &[]),
+                    code::make(Opcode::OpPop, &[]),
+                ],
+            ),
+            (
+                "true != false",
+                vec![],
+                vec![
+                    code::make(Opcode::OpTrue, &[]),
+                    code::make(Opcode::OpFalse, &[]),
+                    code::make(Opcode::OpNotEqual, &[]),
+                    code::make(Opcode::OpPop, &[]),
+                ],
+            ),
         ];
 
         for (input, constants, expected) in cases {
-            let bytecode = compile(&input).unwrap();
-            assert_eq!(&bytecode.constants, constants);
-            check_instructions_eq(&bytecode.instructions, expected);
+            let bytecode = compile(input).unwrap();
+            assert_eq!(&bytecode.constants, &constants);
+            check_instructions_eq(&bytecode.instructions, &expected);
         }
     }
 
