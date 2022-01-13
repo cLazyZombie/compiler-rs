@@ -123,24 +123,24 @@ impl Compiler {
                 },
                 ast::Expr::If(if_expr) => {
                     self.compile(&*if_expr.condition)?;
-                    let condition_addr = self.emit(Opcode::OpJumpNotTruthy, &[9999]);
+                    let condition_jump_addr = self.emit(Opcode::OpJumpNotTruthy, &[9999]);
+
                     self.compile(&*if_expr.consequence_statement)?;
                     if self.last_instruction_is_pop() {
                         self.remove_last_pop();
                     }
 
-                    let jump_addr = self.instructions.len() as u16;
-                    // todo. change to func
-                    let mut buf = [0_u8, 2];
-                    BigEndian::write_u16(&mut buf, jump_addr);
-                    self.instructions[(condition_addr + 1) as usize] = buf[0];
-                    self.instructions[(condition_addr + 2) as usize] = buf[1];
-
-                    if let Some(alternative) = if_expr.alternative_statement.as_ref() {
+                    if let Some(alternative) = &if_expr.alternative_statement {
+                        // else 가 있을때 처리
+                        let jump_addr = self.emit(Opcode::OpJump, &[9999]);
+                        self.set_jump_addr(condition_jump_addr);
                         self.compile(&**alternative)?;
                         if self.last_instruction_is_pop() {
                             self.remove_last_pop();
                         }
+                        self.set_jump_addr(jump_addr);
+                    } else {
+                        self.set_jump_addr(condition_jump_addr);
                     }
                 }
                 _ => {
@@ -187,6 +187,20 @@ impl Compiler {
     fn remove_last_pop(&mut self) {
         self.instructions.pop();
         self.last_instruction = self.prev_instruction.take();
+    }
+
+    fn change_argument(&mut self, instruction_addr: u16, argument_offset: u16, argument: &[u8]) {
+        for i in 0..argument.len() {
+            self.instructions[i + (instruction_addr as usize) + 1 + (argument_offset as usize)] =
+                argument[i];
+        }
+    }
+
+    fn set_jump_addr(&mut self, instruction_addr: u16) {
+        let jump_addr = self.instructions.len() as u16;
+        let mut buf = [0_u8, 2];
+        BigEndian::write_u16(&mut buf, jump_addr);
+        self.change_argument(instruction_addr, 0, &buf);
     }
 }
 
@@ -484,6 +498,24 @@ mod tests {
                     code::make(Opcode::OpConstant, &[0]),
                     code::make(Opcode::OpPop, &[]), // 0007
                     code::make(Opcode::OpConstant, &[1]),
+                    code::make(Opcode::OpPop, &[]),
+                ],
+            ),
+            (
+                "if (true) {10} else {20};3333;",
+                vec![
+                    Object::Int(IntObject::new(10)),
+                    Object::Int(IntObject::new(20)),
+                    Object::Int(IntObject::new(3333)),
+                ],
+                vec![
+                    code::make(Opcode::OpTrue, &[]),
+                    code::make(Opcode::OpJumpNotTruthy, &[10]),
+                    code::make(Opcode::OpConstant, &[0]),
+                    code::make(Opcode::OpJump, &[13]),
+                    code::make(Opcode::OpConstant, &[1]), // 10
+                    code::make(Opcode::OpPop, &[]),       // 13
+                    code::make(Opcode::OpConstant, &[2]),
                     code::make(Opcode::OpPop, &[]),
                 ],
             ),
