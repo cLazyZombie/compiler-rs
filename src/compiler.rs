@@ -13,13 +13,8 @@ pub struct Compiler {
     pub instructions: code::Instructions,
     pub constants: Vec<object::Object>,
 
-    last_instruction: Option<EmittedInstruction>,
-    prev_instruction: Option<EmittedInstruction>,
-}
-
-struct EmittedInstruction {
-    opcode: code::Opcode,
-    pos: u16,
+    last_instruction: Option<code::Opcode>,
+    prev_instruction: Option<code::Opcode>,
 }
 
 impl Compiler {
@@ -175,20 +170,15 @@ impl Compiler {
         let mut ins = code::make(op, operands);
         self.instructions.append(&mut ins);
 
-        let emitted = EmittedInstruction {
-            opcode: op,
-            pos: idx as u16,
-        };
-
         self.prev_instruction = self.last_instruction.take();
-        self.last_instruction = Some(emitted);
+        self.last_instruction = Some(op);
 
         idx as u16
     }
 
     fn last_instruction_is_pop(&self) -> bool {
         if let Some(last_instruction) = &self.last_instruction {
-            last_instruction.opcode == code::Opcode::OpPop
+            last_instruction == &code::Opcode::OpPop
         } else {
             false
         }
