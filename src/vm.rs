@@ -175,6 +175,8 @@ impl Vm {
                         }
                     }
                 }
+                Opcode::OpJumpNotTruthy => todo!(),
+                Opcode::OpJump => todo!(),
             }
         }
         Ok(())

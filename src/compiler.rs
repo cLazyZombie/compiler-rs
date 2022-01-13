@@ -35,7 +35,14 @@ impl Compiler {
                     self.compile(&expr_stmt.expr)?;
                     self.emit(Opcode::OpPop, &[]);
                 }
-                _ => todo!(),
+                ast::Statement::BlockStatement(block_stmt) => {
+                    for stmt in &block_stmt.statements {
+                        self.compile(stmt)?;
+                    }
+                }
+                _ => {
+                    panic!("{:?} is not yet implemented", stmt);
+                }
             },
             ast::Node::Expr(expr) => match expr {
                 ast::Expr::Number(num_expr) => {
@@ -109,7 +116,24 @@ impl Compiler {
                         panic!("not implemented op {}", prefix_expr.op);
                     }
                 },
-                _ => {}
+                ast::Expr::If(if_expr) => {
+                    self.compile(&*if_expr.condition)?;
+                    let condition_addr = self.emit(Opcode::OpJumpNotTruthy, &[9999]);
+                    self.compile(&*if_expr.consequence_statement)?;
+                    let jump_addr = self.instructions.len() as u16;
+                    // todo. change to func
+                    let mut buf = [0_u8, 2];
+                    BigEndian::write_u16(&mut buf, jump_addr);
+                    self.instructions[(condition_addr + 1) as usize] = buf[0];
+                    self.instructions[(condition_addr + 2) as usize] = buf[1];
+
+                    if let Some(alternative) = if_expr.alternative_statement.as_ref() {
+                        self.compile(&**alternative)?;
+                    }
+                }
+                _ => {
+                    panic!("{:?} is not yet implemented", expr);
+                }
             },
         }
 
@@ -254,6 +278,8 @@ mod tests {
         instructions.append(&mut code::make(Opcode::OpGreaterThan, &[]));
         instructions.append(&mut code::make(Opcode::OpNegate, &[]));
         instructions.append(&mut code::make(Opcode::OpBang, &[]));
+        instructions.append(&mut code::make(Opcode::OpJumpNotTruthy, &[100]));
+        instructions.append(&mut code::make(Opcode::OpJump, &[200]));
 
         let expected = r#"0000 OpConstant 1
 0003 OpConstant 2
@@ -267,6 +293,8 @@ mod tests {
 0015 OpGreaterThan
 0016 OpNegate
 0017 OpBang
+0018 OpJumpNotTruthy 100
+0021 OpJump 200
 "#;
 
         assert_eq!(disassemble(&instructions).unwrap(), expected);
@@ -402,6 +430,34 @@ mod tests {
                     code::make(Opcode::OpPop, &[]),
                 ],
             )
+        ];
+
+        for (input, constants, expected) in cases {
+            let bytecode = compile(input).unwrap();
+            assert_eq!(&bytecode.constants, &constants);
+            check_instructions_eq(&bytecode.instructions, &expected);
+        }
+    }
+
+    #[test]
+    fn conditional() {
+        let cases = [
+            // input, constants, expected instructions(
+            (
+                "if (true) {10}; 3333;",
+                vec![
+                    Object::Int(IntObject::new(10)),
+                    Object::Int(IntObject::new(3333)),
+                ],
+                vec![
+                    code::make(Opcode::OpTrue, &[]),
+                    code::make(Opcode::OpJumpNotTruthy, &[7]),
+                    code::make(Opcode::OpConstant, &[0]),
+                    code::make(Opcode::OpPop, &[]), // 0007
+                    code::make(Opcode::OpConstant, &[1]),
+                    code::make(Opcode::OpPop, &[]),
+                ],
+            ),
         ];
 
         for (input, constants, expected) in cases {

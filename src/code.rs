@@ -24,6 +24,8 @@ pub enum Opcode {
     OpGreaterThan,
     OpNegate, // - prefix
     OpBang,   // ! prefix
+    OpJumpNotTruthy,
+    OpJump,
 }
 
 impl Opcode {
@@ -81,6 +83,14 @@ impl Opcode {
             Opcode::OpBang => Definition {
                 name: "OpBang",
                 operand_widths: Vec::new(),
+            },
+            Opcode::OpJumpNotTruthy => Definition {
+                name: "OpJumpNotTruthy",
+                operand_widths: vec![2],
+            },
+            Opcode::OpJump => Definition {
+                name: "OpJump",
+                operand_widths: vec![2],
             },
         }
     }
@@ -144,6 +154,8 @@ mod tests {
             ( Opcode::OpGreaterThan, vec![], vec![Opcode::OpGreaterThan as u8]),
             ( Opcode::OpNegate, vec![], vec![Opcode::OpNegate as u8]),
             ( Opcode::OpBang, vec![], vec![Opcode::OpBang as u8]),
+            ( Opcode::OpJumpNotTruthy, vec![100], vec![Opcode::OpJumpNotTruthy as u8, 0, 100]),
+            ( Opcode::OpJump, vec![200], vec![Opcode::OpJump as u8, 0, 200]),
         ];
 
         for t in tests {
