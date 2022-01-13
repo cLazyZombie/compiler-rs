@@ -12,6 +12,7 @@ pub struct Vm {
     instructions: code::Instructions,
     stack: Vec<Object>,
     sp: usize,
+    ip: usize,
     #[cfg(test)]
     pub last_popped_stack_element: Object,
 }
@@ -25,15 +26,15 @@ impl Vm {
             instructions: bytecode.instructions,
             stack: vec![Object::Null; Self::STACK_SIZE],
             sp: 0,
+            ip: 0,
             #[cfg(test)]
             last_popped_stack_element: Object::default(),
         }
     }
 
     pub fn run(&mut self) -> Result<(), VmError> {
-        let mut ip = 0;
-        while ip < self.instructions.len() {
-            let op_raw = self.instructions[ip];
+        while self.ip < self.instructions.len() {
+            let op_raw = self.instructions[self.ip];
             let op = code::Opcode::try_from_primitive(op_raw);
             if op.is_err() {
                 return Err(VmError::GeneralError(format!(
@@ -42,13 +43,11 @@ impl Vm {
                 )));
             }
             let op = op.unwrap();
-            ip += 1;
+            self.ip += 1;
 
             match op {
                 code::Opcode::OpConstant => {
-                    let const_index = BigEndian::read_u16(&mut self.instructions[ip..]);
-                    ip += 2;
-
+                    let const_index = self.read_u16_from_instructions();
                     self.push(self.constants[const_index as usize].clone())?;
                 }
                 code::Opcode::OpAdd => {
@@ -175,11 +174,33 @@ impl Vm {
                         }
                     }
                 }
-                Opcode::OpJumpNotTruthy => todo!(),
-                Opcode::OpJump => todo!(),
+                Opcode::OpJumpNotTruthy => {
+                    let condition = match self.pop() {
+                        Some(Object::Bool(bool_obj)) => bool_obj.val,
+                        _ => false,
+                    };
+                    let jump_addr = self.read_u16_from_instructions();
+
+                    if condition == false {
+                        self.ip = jump_addr as usize;
+                    }
+                }
+                Opcode::OpJump => {
+                    let jump_addr = self.read_u16_from_instructions();
+                    self.ip = jump_addr as usize;
+                }
+                Opcode::OpNull => {
+                    self.push(Object::Null)?;
+                }
             }
         }
         Ok(())
+    }
+
+    fn read_u16_from_instructions(&mut self) -> u16 {
+        let val = BigEndian::read_u16(&mut self.instructions[self.ip..]);
+        self.ip += 2;
+        val
     }
 
     fn push(&mut self, obj: Object) -> Result<(), VmError> {
@@ -266,6 +287,22 @@ mod test {
             ("!true", Object::Bool(BoolObject::new(false))),
             ("!!true", Object::Bool(BoolObject::new(true))),
             ("!false", Object::Bool(BoolObject::new(true))),
+        ];
+
+        for (i, expected) in input {
+            vm_test(i, &expected);
+        }
+    }
+
+    #[test]
+    fn conditional() {
+        let input = [
+            ("if (true) {10}", Object::Int(IntObject::new(10))),
+            ("if (true) {10} else {20}", Object::Int(IntObject::new(10))),
+            ("if (false) {10} else {20}", Object::Int(IntObject::new(20))),
+            ("if (1 < 2) {10} else {20}", Object::Int(IntObject::new(10))),
+            ("if (1 > 2) {10} else {20}", Object::Int(IntObject::new(20))),
+            ("if (1 > 2) {10};", Object::Null),
         ];
 
         for (i, expected) in input {

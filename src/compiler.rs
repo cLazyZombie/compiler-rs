@@ -129,19 +129,19 @@ impl Compiler {
                     if self.last_instruction_is_pop() {
                         self.remove_last_pop();
                     }
+                    let jump_addr = self.emit(Opcode::OpJump, &[9999]);
+
+                    self.set_jump_addr(condition_jump_addr);
 
                     if let Some(alternative) = &if_expr.alternative_statement {
-                        // else 가 있을때 처리
-                        let jump_addr = self.emit(Opcode::OpJump, &[9999]);
-                        self.set_jump_addr(condition_jump_addr);
                         self.compile(&**alternative)?;
                         if self.last_instruction_is_pop() {
                             self.remove_last_pop();
                         }
-                        self.set_jump_addr(jump_addr);
                     } else {
-                        self.set_jump_addr(condition_jump_addr);
+                        self.emit(Opcode::OpNull, &[]);
                     }
+                    self.set_jump_addr(jump_addr);
                 }
                 _ => {
                     panic!("{:?} is not yet implemented", expr);
@@ -494,9 +494,11 @@ mod tests {
                 ],
                 vec![
                     code::make(Opcode::OpTrue, &[]),
-                    code::make(Opcode::OpJumpNotTruthy, &[7]),
+                    code::make(Opcode::OpJumpNotTruthy, &[10]),
                     code::make(Opcode::OpConstant, &[0]),
-                    code::make(Opcode::OpPop, &[]), // 0007
+                    code::make(Opcode::OpJump, &[11]),
+                    code::make(Opcode::OpNull, &[]),
+                    code::make(Opcode::OpPop, &[]), // 0011
                     code::make(Opcode::OpConstant, &[1]),
                     code::make(Opcode::OpPop, &[]),
                 ],

@@ -26,6 +26,7 @@ pub enum Opcode {
     OpBang,   // ! prefix
     OpJumpNotTruthy,
     OpJump,
+    OpNull,
 }
 
 impl Opcode {
@@ -92,6 +93,10 @@ impl Opcode {
                 name: "OpJump",
                 operand_widths: vec![2],
             },
+            Opcode::OpNull => Definition {
+                name: "OpNull",
+                operand_widths: vec![],
+            },
         }
     }
 
@@ -156,6 +161,7 @@ mod tests {
             ( Opcode::OpBang, vec![], vec![Opcode::OpBang as u8]),
             ( Opcode::OpJumpNotTruthy, vec![100], vec![Opcode::OpJumpNotTruthy as u8, 0, 100]),
             ( Opcode::OpJump, vec![200], vec![Opcode::OpJump as u8, 0, 200]),
+            ( Opcode::OpNull, vec![], vec![Opcode::OpNull as u8]),
         ];
 
         for t in tests {
