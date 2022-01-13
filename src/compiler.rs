@@ -12,6 +12,14 @@ use crate::{
 pub struct Compiler {
     pub instructions: code::Instructions,
     pub constants: Vec<object::Object>,
+
+    last_instruction: Option<EmittedInstruction>,
+    prev_instruction: Option<EmittedInstruction>,
+}
+
+struct EmittedInstruction {
+    opcode: code::Opcode,
+    pos: u16,
 }
 
 impl Compiler {
@@ -19,6 +27,8 @@ impl Compiler {
         Self {
             instructions: code::Instructions::new(),
             constants: Vec::new(),
+            last_instruction: None,
+            prev_instruction: None,
         }
     }
 
@@ -120,6 +130,10 @@ impl Compiler {
                     self.compile(&*if_expr.condition)?;
                     let condition_addr = self.emit(Opcode::OpJumpNotTruthy, &[9999]);
                     self.compile(&*if_expr.consequence_statement)?;
+                    if self.last_instruction_is_pop() {
+                        self.remove_last_pop();
+                    }
+
                     let jump_addr = self.instructions.len() as u16;
                     // todo. change to func
                     let mut buf = [0_u8, 2];
@@ -129,6 +143,9 @@ impl Compiler {
 
                     if let Some(alternative) = if_expr.alternative_statement.as_ref() {
                         self.compile(&**alternative)?;
+                        if self.last_instruction_is_pop() {
+                            self.remove_last_pop();
+                        }
                     }
                 }
                 _ => {
@@ -157,7 +174,29 @@ impl Compiler {
         let idx = self.instructions.len();
         let mut ins = code::make(op, operands);
         self.instructions.append(&mut ins);
+
+        let emitted = EmittedInstruction {
+            opcode: op,
+            pos: idx as u16,
+        };
+
+        self.prev_instruction = self.last_instruction.take();
+        self.last_instruction = Some(emitted);
+
         idx as u16
+    }
+
+    fn last_instruction_is_pop(&self) -> bool {
+        if let Some(last_instruction) = &self.last_instruction {
+            last_instruction.opcode == code::Opcode::OpPop
+        } else {
+            false
+        }
+    }
+
+    fn remove_last_pop(&mut self) {
+        self.instructions.pop();
+        self.last_instruction = self.prev_instruction.take();
     }
 }
 

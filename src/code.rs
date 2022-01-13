@@ -9,7 +9,7 @@ pub struct Definition {
 pub type Instructions = Vec<u8>;
 
 #[repr(u8)]
-#[derive(Clone, Copy, TryFromPrimitive)]
+#[derive(Clone, Copy, TryFromPrimitive, PartialEq, Eq)]
 pub enum Opcode {
     OpConstant,
     OpAdd,
