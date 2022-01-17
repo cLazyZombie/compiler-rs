@@ -408,5 +408,4 @@ mod tests {
             assert_eq!(lexer.next_token(), Some(tok));
         }
     }
-
 }

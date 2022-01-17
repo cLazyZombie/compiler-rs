@@ -32,27 +32,62 @@ impl Program {
 }
 
 #[derive(Debug)]
-pub enum Node<'a> {
+pub enum Node {
+    Program(Program),
+    Stmt(Statement),
+    Expr(Expr),
+}
+
+impl<'a> From<&'a Node> for NodeRef<'a> {
+    fn from(node: &'a Node) -> Self {
+        match node {
+            Node::Program(program) => NodeRef::Program(program),
+            Node::Stmt(stmt) => NodeRef::Stmt(stmt),
+            Node::Expr(expr) => NodeRef::Expr(expr),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum NodeRef<'a> {
     Program(&'a Program),
     Stmt(&'a Statement),
     Expr(&'a Expr),
 }
 
-impl<'a> From<&'a Program> for Node<'a> {
-    fn from(program: &'a Program) -> Self {
+impl From<Program> for Node {
+    fn from(program: Program) -> Self {
         Node::Program(program)
     }
 }
 
-impl<'a> From<&'a Statement> for Node<'a> {
-    fn from(stmt: &'a Statement) -> Self {
+impl<'a> From<&'a Program> for NodeRef<'a> {
+    fn from(program: &'a Program) -> Self {
+        NodeRef::Program(program)
+    }
+}
+
+impl From<Statement> for Node {
+    fn from(stmt: Statement) -> Self {
         Node::Stmt(stmt)
     }
 }
 
-impl<'a> From<&'a Expr> for Node<'a> {
-    fn from(expr: &'a Expr) -> Self {
+impl<'a> From<&'a Statement> for NodeRef<'a> {
+    fn from(stmt: &'a Statement) -> Self {
+        NodeRef::Stmt(stmt)
+    }
+}
+
+impl From<Expr> for Node {
+    fn from(expr: Expr) -> Self {
         Node::Expr(expr)
+    }
+}
+
+impl<'a> From<&'a Expr> for NodeRef<'a> {
+    fn from(expr: &'a Expr) -> Self {
+        NodeRef::Expr(expr)
     }
 }
 
@@ -114,11 +149,12 @@ impl Display for ReturnStatement {
 #[derive(Debug, Clone)]
 pub struct ExprStatement {
     pub expr: Expr,
+    pub semicolon: bool, // semicolon으로 끝났는지
 }
 
 impl ExprStatement {
-    pub fn new(expr: Expr) -> Self {
-        Self { expr }
+    pub fn new(expr: Expr, semicolon: bool) -> Self {
+        Self { expr, semicolon }
     }
 }
 
@@ -130,16 +166,12 @@ impl Display for ExprStatement {
 
 #[derive(Debug, Clone)]
 pub struct BlockStatement {
-    pub statements: Vec<Statement>,
+    pub expr: BlockExpr,
 }
 
 impl Display for BlockStatement {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "{{")?;
-        for stmt in &self.statements {
-            writeln!(f, "{}", stmt)?;
-        }
-        writeln!(f, "}}")
+        self.expr.fmt(f)
     }
 }
 
@@ -162,6 +194,7 @@ pub enum Expr {
     If(IfExpr),
     Function(FuncExpr),
     Call(CallExpr),
+    Block(BlockExpr),
 }
 
 impl Expr {
@@ -201,6 +234,7 @@ impl Display for Expr {
             Expr::Call(call_expr) => write!(f, "{}", call_expr),
             Expr::Array(array_expr) => array_expr.fmt(f),
             Expr::ArrayIndex(array_index_expr) => array_index_expr.fmt(f),
+            Expr::Block(block_expr) => write!(f, "{}", block_expr.to_string()),
         }
     }
 }
@@ -361,5 +395,20 @@ impl Display for CallExpr {
             write!(f, "{}", arg)?;
         }
         write!(f, ")")
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct BlockExpr {
+    pub statements: Vec<Statement>,
+}
+
+impl Display for BlockExpr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "{{")?;
+        for stmt in &self.statements {
+            writeln!(f, "{}", stmt)?;
+        }
+        writeln!(f, "}}")
     }
 }

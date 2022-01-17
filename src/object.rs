@@ -3,11 +3,7 @@ use std::{
     ops::{Add, Div, Mul, Sub},
 };
 
-use crate::{
-    ast::Statement,
-    eval::{EvalError, FailedToConvertBoolSnafu, FailedToConvertIntSnafu},
-    token::IdentToken,
-};
+use crate::{ast::Statement, token::IdentToken};
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Object {
@@ -131,8 +127,14 @@ impl Display for Object {
     }
 }
 
+#[derive(Debug)]
+pub struct ObjectConvertError {
+    pub original_type: String,
+    pub destinatin_type: String,
+}
+
 impl TryInto<BoolObject> for Object {
-    type Error = EvalError;
+    type Error = ObjectConvertError;
 
     fn try_into(self) -> Result<BoolObject, Self::Error> {
         match self {
@@ -147,28 +149,28 @@ impl TryInto<BoolObject> for Object {
                 let obj = *val;
                 obj.try_into()
             }
-            Object::String(string_obj) => FailedToConvertBoolSnafu {
+            Object::String(string_obj) => Err(ObjectConvertError {
                 original_type: format!("\"{}\"", string_obj.val),
-            }
-            .fail(),
-            Object::Fn(_) => FailedToConvertBoolSnafu {
+                destinatin_type: "BoolObject".to_string(),
+            }),
+            Object::Fn(_) => Err(ObjectConvertError {
                 original_type: "Fn".to_string(),
-            }
-            .fail(),
+                destinatin_type: "BoolObject".to_string(),
+            }),
         }
     }
 }
 
 impl TryInto<IntObject> for Object {
-    type Error = EvalError;
+    type Error = ObjectConvertError;
 
     fn try_into(self) -> Result<IntObject, Self::Error> {
         match self {
             Object::Int(i) => Ok(i),
-            _ => FailedToConvertIntSnafu {
+            _ => Err(ObjectConvertError {
                 original_type: self.to_string(),
-            }
-            .fail(),
+                destinatin_type: "IntObject".to_string(),
+            }),
         }
     }
 }

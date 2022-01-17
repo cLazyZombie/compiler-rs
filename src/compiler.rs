@@ -1,7 +1,7 @@
 use byteorder::{BigEndian, ByteOrder};
 
 use crate::{
-    ast::{self, Node},
+    ast::{self, NodeRef},
     code::{self, Opcode},
     lexer::Lexer,
     object::{self, IntObject},
@@ -27,21 +27,21 @@ impl Compiler {
         }
     }
 
-    pub fn compile<'a, N: Into<Node<'a>>>(&mut self, node: N) -> Result<(), CompileError> {
-        let node: Node = node.into();
+    pub fn compile<'a, N: Into<NodeRef<'a>>>(&mut self, node: N) -> Result<(), CompileError> {
+        let node: NodeRef = node.into();
         match node {
-            ast::Node::Program(program) => {
+            ast::NodeRef::Program(program) => {
                 for stmt in &program.statements {
                     self.compile(stmt)?;
                 }
             }
-            ast::Node::Stmt(stmt) => match stmt {
+            ast::NodeRef::Stmt(stmt) => match stmt {
                 ast::Statement::ExprStatement(expr_stmt) => {
                     self.compile(&expr_stmt.expr)?;
                     self.emit(Opcode::OpPop, &[]);
                 }
                 ast::Statement::BlockStatement(block_stmt) => {
-                    for stmt in &block_stmt.statements {
+                    for stmt in &block_stmt.expr.statements {
                         self.compile(stmt)?;
                     }
                 }
@@ -49,7 +49,7 @@ impl Compiler {
                     panic!("{:?} is not yet implemented", stmt);
                 }
             },
-            ast::Node::Expr(expr) => match expr {
+            ast::NodeRef::Expr(expr) => match expr {
                 ast::Expr::Number(num_expr) => {
                     let num_obj = object::Object::Int(IntObject::new(num_expr.value));
                     let const_idx = self.add_constant(num_obj);
@@ -212,7 +212,7 @@ pub fn compile(s: &str) -> Result<Bytecode, CompileError> {
     let program = parser.parse().unwrap();
     let stmts = program.take_statement();
     for stmt in &stmts {
-        let node: Node = stmt.into();
+        let node: NodeRef = stmt.into();
         compiler.compile(node)?;
     }
 

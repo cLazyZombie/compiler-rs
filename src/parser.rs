@@ -66,8 +66,11 @@ impl Parser {
         let mut statements = Vec::new();
 
         while let Some(token) = self.cur_token() {
-            if matches!(token, Token::RBrace) {
-                break;
+            match token {
+                Token::RBrace => {
+                    break;
+                }
+                _ => {}
             }
 
             let statement = self.parse_statement()?;
@@ -107,6 +110,7 @@ impl Parser {
         self.advancd_token();
 
         let expr = self.parse_expr(Precedence::Lowest)?;
+        self.expect_token(Token::Semicolon)?;
 
         let let_statement = ast::LetStatement::new(identifier, expr);
         Ok(let_statement)
@@ -116,13 +120,20 @@ impl Parser {
         self.advancd_token(); // return
 
         let expr = self.parse_expr(Precedence::Lowest)?;
+        self.expect_token(Token::Semicolon)?;
         let return_stmt = ast::ReturnStatement::new(expr);
         Ok(return_stmt)
     }
 
     fn parse_expr_statement(&mut self) -> Result<ast::ExprStatement, ParseError> {
         let expr = self.parse_expr(Precedence::Lowest)?;
-        let expr_stmt = ast::ExprStatement::new(expr);
+        let semicolon = if self.cur_token() == Some(Token::Semicolon) {
+            self.advancd_token();
+            true
+        } else {
+            false
+        };
+        let expr_stmt = ast::ExprStatement::new(expr, semicolon);
         Ok(expr_stmt)
     }
 
@@ -167,6 +178,7 @@ impl Parser {
             (Token::LParen, _) => self.parse_group_expr()?,
             (Token::If, _) => self.parse_if_expr()?,
             (Token::Function, _) => self.parse_function_expr()?,
+            (Token::LBrace, _) => self.parse_block_expression()?,
             (tok, _) => {
                 let result = Expr::new_single_expr(tok.clone()).ok_or_else(|| {
                     let err = format!("expr token expected, but {:?}", tok);
@@ -290,9 +302,40 @@ impl Parser {
 
         self.expect_token(Token::RBrace)?;
 
-        let block_statement = ast::BlockStatement { statements };
+        let block_expr = ast::BlockExpr { statements };
+        let block_statement = ast::BlockStatement { expr: block_expr };
 
         Ok(block_statement)
+    }
+
+    fn parse_block_expression(&mut self) -> Result<ast::Expr, ParseError> {
+        self.expect_token(Token::LBrace)?;
+        let statements = self.parse_statements()?;
+        self.expect_token(Token::RBrace)?;
+
+        if statements.len() == 0 {
+            let msg = format!("empty block expression");
+            return NormalSnafu { msg }.fail();
+        }
+
+        // check last statement has no semicolon
+        match statements.last() {
+            Some(Statement::ExprStatement(expr_stmt)) => {
+                if expr_stmt.semicolon {
+                    let msg = format!("last node in block statement shouldn't have semicolon");
+                    return NormalSnafu { msg }.fail();
+                }
+            }
+            _ => {
+                let msg = format!(
+                    "last node in block statement should be ExprStatement without semicolon"
+                );
+                return NormalSnafu { msg }.fail();
+            }
+        }
+
+        let block_expr = ast::Expr::Block(ast::BlockExpr { statements });
+        Ok(block_expr)
     }
 
     fn expect_token(&mut self, expected_tok: Token) -> Result<Token, ParseError> {
@@ -336,9 +379,7 @@ impl Parser {
         let mut result = self.parse_prefix_expr()?;
 
         while let Some(cur_token) = self.cur_token() {
-            // exit expr parsing if semicolon encountered
-            if self.cur_token() == Some(Token::Semicolon) {
-                self.advancd_token();
+            if cur_token == Token::Semicolon {
                 return Ok(result);
             }
 
@@ -410,6 +451,29 @@ mod tests {
         assert_eq!(program.statement_count(), 1);
 
         check_let_statement(program.get_statement(0).unwrap(), "val");
+    }
+
+    #[test]
+    fn let_block() {
+        let input = "let val = { 1 + 2 };";
+        let statements = input_to_statements(input);
+        assert_eq!(statements.len(), 1);
+    }
+
+    #[test]
+    fn block_statement() {
+        let input = "{ a; b; c}";
+        let stmts = input_to_statements(input);
+        let block_stmt = get_block_statement(&stmts[0]).unwrap();
+        assert_eq!(block_stmt.expr.statements.len(), 3);
+
+        for i in 0..block_stmt.expr.statements.len() {
+            let expr_statement = get_expr_statement(&block_stmt.expr.statements[i]).unwrap();
+            match i {
+                2 => assert_eq!(expr_statement.semicolon, false),
+                _ => assert_eq!(expr_statement.semicolon, true),
+            }
+        }
     }
 
     #[test]
@@ -587,8 +651,8 @@ mod tests {
 
         let consequence = &if_expr.consequence_statement;
         let consequence = get_block_statement(&consequence).unwrap();
-        assert_eq!(consequence.statements.len(), 1);
-        let expr = get_expr_statement(&consequence.statements[0]).unwrap();
+        assert_eq!(consequence.expr.statements.len(), 1);
+        let expr = get_expr_statement(&consequence.expr.statements[0]).unwrap();
         check_identifier_expr(&expr.expr, "a");
     }
 
@@ -606,14 +670,14 @@ mod tests {
 
         let consequence = &if_expr.consequence_statement;
         let consequence = get_block_statement(&consequence).unwrap();
-        assert_eq!(consequence.statements.len(), 1);
-        let expr = get_expr_statement(&consequence.statements[0]).unwrap();
+        assert_eq!(consequence.expr.statements.len(), 1);
+        let expr = get_expr_statement(&consequence.expr.statements[0]).unwrap();
         check_identifier_expr(&expr.expr, "a");
 
         let alternative = if_expr.alternative_statement.as_ref().unwrap();
         let alternative = get_block_statement(&alternative).unwrap();
-        assert_eq!(alternative.statements.len(), 1);
-        let expr = get_expr_statement(&alternative.statements[0]).unwrap();
+        assert_eq!(alternative.expr.statements.len(), 1);
+        let expr = get_expr_statement(&alternative.expr.statements[0]).unwrap();
         check_identifier_expr(&expr.expr, "b");
     }
 
