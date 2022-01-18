@@ -7,30 +7,29 @@ use crate::{
     object::{BoolObject, IntObject, Object},
 };
 
-pub struct Vm {
+use super::GlobalVars;
+
+pub struct Vm<'a> {
     constants: Vec<Object>,
     instructions: code::Instructions,
     stack: Vec<Object>,
-    globals: Vec<Object>,
+    globals: &'a mut GlobalVars,
     sp: usize,
     ip: usize,
-    #[cfg(test)]
     pub last_popped_stack_element: Object,
 }
 
-impl Vm {
+impl<'a> Vm<'a> {
     const STACK_SIZE: usize = 1024;
-    const GLOBAL_SIZE: usize = 65536; // todo. global 갯수는 컴파일된 결과에서 알수 있음
 
-    pub fn new(bytecode: Bytecode) -> Self {
+    pub fn new(bytecode: Bytecode, globals: &'a mut GlobalVars) -> Self {
         Self {
             constants: bytecode.constants,
             instructions: bytecode.instructions,
             stack: vec![Object::Null; Self::STACK_SIZE],
-            globals: vec![Object::Null; Self::GLOBAL_SIZE],
+            globals: globals,
             sp: 0,
             ip: 0,
-            #[cfg(test)]
             last_popped_stack_element: Object::default(),
         }
     }
@@ -197,7 +196,7 @@ impl Vm {
                 }
                 Opcode::OpGetGlobal => {
                     let idx = self.read_u16_from_instructions();
-                    let global = self.globals.get(idx as usize).unwrap();
+                    let global = self.globals.get(idx).unwrap();
                     let clonned = global.clone();
                     self.push(clonned)?;
                 }
@@ -205,7 +204,7 @@ impl Vm {
                     let top = self.pop().unwrap();
 
                     let idx = self.read_u16_from_instructions();
-                    let global = self.globals.get_mut(idx as usize).unwrap();
+                    let global = self.globals.get_mut(idx).unwrap();
 
                     *global = top;
                 }
@@ -233,17 +232,11 @@ impl Vm {
 
     fn pop(&mut self) -> Option<Object> {
         if self.sp == 0 {
-            #[cfg(test)]
-            {
-                self.last_popped_stack_element = Object::Null;
-            }
+            self.last_popped_stack_element = Object::Null;
             None
         } else {
             let obj = std::mem::take(&mut self.stack[self.sp - 1]);
-            #[cfg(test)]
-            {
-                self.last_popped_stack_element = obj.clone();
-            }
+            self.last_popped_stack_element = obj.clone();
             self.sp -= 1;
             Some(obj)
         }
@@ -350,7 +343,8 @@ mod test {
         let bytecode = compiler::compile(s).unwrap();
         let disassembled = compiler::disassemble(&bytecode.instructions).unwrap();
 
-        let mut vm = Vm::new(bytecode);
+        let mut global_vars = GlobalVars::new(65535);
+        let mut vm = Vm::new(bytecode, &mut global_vars);
         vm.run().unwrap();
 
         assert_eq!(

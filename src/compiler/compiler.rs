@@ -9,26 +9,26 @@ use crate::{
     token::Token,
 };
 
-pub struct Compiler {
+pub struct Compiler<'a> {
     pub instructions: code::Instructions,
     pub constants: Vec<object::Object>,
-    symbol_table: SymbolTable,
+    symbol_table: &'a mut SymbolTable,
     last_instruction: Option<code::Opcode>,
     prev_instruction: Option<code::Opcode>,
 }
 
-impl Compiler {
-    pub fn new() -> Self {
+impl<'a> Compiler<'a> {
+    pub fn new(symbol_table: &'a mut SymbolTable) -> Self {
         Self {
             instructions: code::Instructions::new(),
             constants: Vec::new(),
-            symbol_table: SymbolTable::new(),
+            symbol_table: symbol_table,
             last_instruction: None,
             prev_instruction: None,
         }
     }
 
-    pub fn compile<'a, N: Into<NodeRef<'a>>>(&mut self, node: N) -> Result<(), CompileError> {
+    pub fn compile<'b, N: Into<NodeRef<'b>>>(&mut self, node: N) -> Result<(), CompileError> {
         let node: NodeRef = node.into();
         match node {
             ast::NodeRef::Program(program) => {
@@ -224,7 +224,8 @@ impl Compiler {
 }
 
 pub fn compile(s: &str) -> Result<Bytecode, CompileError> {
-    let mut compiler = Compiler::new();
+    let mut symbol_table = SymbolTable::new();
+    let mut compiler = Compiler::new(&mut symbol_table);
 
     let lexer = Lexer::new(s);
     let parser = Parser::new(lexer);
