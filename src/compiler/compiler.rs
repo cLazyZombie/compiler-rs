@@ -344,6 +344,8 @@ mod tests {
         instructions.append(&mut code::make(Opcode::OpBang, &[]));
         instructions.append(&mut code::make(Opcode::OpJumpNotTruthy, &[100]));
         instructions.append(&mut code::make(Opcode::OpJump, &[200]));
+        instructions.append(&mut code::make(Opcode::OpGetGlobal, &[1]));
+        instructions.append(&mut code::make(Opcode::OpSetGlobal, &[2]));
 
         let expected = r#"0000 OpConstant 1
 0003 OpConstant 2
@@ -359,6 +361,8 @@ mod tests {
 0017 OpBang
 0018 OpJumpNotTruthy 100
 0021 OpJump 200
+0024 OpGetGlobal 1
+0027 OpSetGlobal 2
 "#;
 
         assert_eq!(disassemble(&instructions).unwrap(), expected);

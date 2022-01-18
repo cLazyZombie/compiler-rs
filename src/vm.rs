@@ -11,6 +11,7 @@ pub struct Vm {
     constants: Vec<Object>,
     instructions: code::Instructions,
     stack: Vec<Object>,
+    globals: Vec<Object>,
     sp: usize,
     ip: usize,
     #[cfg(test)]
@@ -19,12 +20,14 @@ pub struct Vm {
 
 impl Vm {
     const STACK_SIZE: usize = 1024;
+    const GLOBAL_SIZE: usize = 65536; // todo. global 갯수는 컴파일된 결과에서 알수 있음
 
     pub fn new(bytecode: Bytecode) -> Self {
         Self {
             constants: bytecode.constants,
             instructions: bytecode.instructions,
             stack: vec![Object::Null; Self::STACK_SIZE],
+            globals: vec![Object::Null; Self::GLOBAL_SIZE],
             sp: 0,
             ip: 0,
             #[cfg(test)]
@@ -193,10 +196,18 @@ impl Vm {
                     self.push(Object::Null)?;
                 }
                 Opcode::OpGetGlobal => {
-                    todo!()
+                    let idx = self.read_u16_from_instructions();
+                    let global = self.globals.get(idx as usize).unwrap();
+                    let clonned = global.clone();
+                    self.push(clonned)?;
                 }
                 Opcode::OpSetGlobal => {
-                    todo!()
+                    let top = self.pop().unwrap();
+
+                    let idx = self.read_u16_from_instructions();
+                    let global = self.globals.get_mut(idx as usize).unwrap();
+
+                    *global = top;
                 }
             }
         }
@@ -313,6 +324,25 @@ mod test {
 
         for (i, expected) in input {
             vm_test(i, &expected);
+        }
+    }
+
+    #[test]
+    fn let_statement() {
+        let input = [
+            ("let one = 1; one", Object::Int(IntObject::new(1))),
+            (
+                "let one = 1; let two = 2; one + two",
+                Object::Int(IntObject::new(3)),
+            ),
+            (
+                "let one = 1; let two = one + one; one + two",
+                Object::Int(IntObject::new(3)),
+            ),
+        ];
+
+        for (s, expected) in input {
+            vm_test(s, &expected);
         }
     }
 
