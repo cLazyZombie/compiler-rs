@@ -192,6 +192,12 @@ impl Vm {
                 Opcode::OpNull => {
                     self.push(Object::Null)?;
                 }
+                Opcode::OpGetGlobal => {
+                    todo!()
+                }
+                Opcode::OpSetGlobal => {
+                    todo!()
+                }
             }
         }
         Ok(())

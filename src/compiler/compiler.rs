@@ -12,7 +12,7 @@ use crate::{
 pub struct Compiler {
     pub instructions: code::Instructions,
     pub constants: Vec<object::Object>,
-
+    symbol_table: SymbolTable,
     last_instruction: Option<code::Opcode>,
     prev_instruction: Option<code::Opcode>,
 }
@@ -22,6 +22,7 @@ impl Compiler {
         Self {
             instructions: code::Instructions::new(),
             constants: Vec::new(),
+            symbol_table: SymbolTable::new(),
             last_instruction: None,
             prev_instruction: None,
         }
@@ -44,6 +45,12 @@ impl Compiler {
                     for stmt in &block_stmt.expr.statements {
                         self.compile(stmt)?;
                     }
+                }
+                ast::Statement::LetStatement(let_stmt) => {
+                    self.compile(&let_stmt.expr)?;
+                    let symbol = self.symbol_table.define(&let_stmt.ident.to_string());
+                    let symbol_index = symbol.index;
+                    self.emit(Opcode::OpSetGlobal, &[symbol_index]);
                 }
                 _ => {
                     panic!("{:?} is not yet implemented", stmt);
@@ -142,6 +149,18 @@ impl Compiler {
                         self.emit(Opcode::OpNull, &[]);
                     }
                     self.set_jump_addr(jump_addr);
+                }
+                ast::Expr::Identifier(ident_expr) => {
+                    let symbol = self.symbol_table.get(&ident_expr.to_string());
+                    if let Some(symbol) = symbol {
+                        let symbol_index = symbol.index;
+                        self.emit(Opcode::OpGetGlobal, &[symbol_index]);
+                    } else {
+                        return Err(CompileError::GeneralError(format!(
+                            "not declared identifier {}",
+                            ident_expr.to_string()
+                        )));
+                    }
                 }
                 _ => {
                     panic!("{:?} is not yet implemented", expr);
@@ -244,6 +263,8 @@ pub enum DisassembleError {
 }
 
 use std::fmt::Write;
+
+use super::SymbolTable;
 
 pub fn disassemble(instructions: &code::Instructions) -> Result<String, DisassembleError> {
     let mut result = String::new();
@@ -518,6 +539,42 @@ mod tests {
                     code::make(Opcode::OpConstant, &[1]), // 10
                     code::make(Opcode::OpPop, &[]),       // 13
                     code::make(Opcode::OpConstant, &[2]),
+                    code::make(Opcode::OpPop, &[]),
+                ],
+            ),
+        ];
+
+        for (input, constants, expected) in cases {
+            let bytecode = compile(input).unwrap();
+            assert_eq!(&bytecode.constants, &constants);
+            check_instructions_eq(&bytecode.instructions, &expected);
+        }
+    }
+
+    #[test]
+    fn let_statement() {
+        let cases = [
+            (
+                "let one = 1; let two = 2;",
+                vec![
+                    Object::Int(IntObject::new(1)),
+                    Object::Int(IntObject::new(2)),
+                ],
+                vec![
+                    code::make(Opcode::OpConstant, &[0]),
+                    code::make(Opcode::OpSetGlobal, &[0]),
+                    code::make(Opcode::OpConstant, &[1]),
+                    code::make(Opcode::OpSetGlobal, &[1]),
+                ],
+            ),
+            (
+                r#" let one = 1;
+                    one;"#,
+                vec![Object::Int(IntObject::new(1))],
+                vec![
+                    code::make(Opcode::OpConstant, &[0]),
+                    code::make(Opcode::OpSetGlobal, &[0]),
+                    code::make(Opcode::OpGetGlobal, &[0]),
                     code::make(Opcode::OpPop, &[]),
                 ],
             ),

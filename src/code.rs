@@ -27,6 +27,8 @@ pub enum Opcode {
     OpJumpNotTruthy,
     OpJump,
     OpNull,
+    OpSetGlobal,
+    OpGetGlobal,
 }
 
 impl Opcode {
@@ -97,6 +99,14 @@ impl Opcode {
                 name: "OpNull",
                 operand_widths: vec![],
             },
+            Opcode::OpGetGlobal => Definition {
+                name: "OpGetGlobal",
+                operand_widths: vec![2],
+            },
+            Opcode::OpSetGlobal => Definition {
+                name: "OpSetGlobal",
+                operand_widths: vec![2],
+            },
         }
     }
 
@@ -162,6 +172,8 @@ mod tests {
             ( Opcode::OpJumpNotTruthy, vec![100], vec![Opcode::OpJumpNotTruthy as u8, 0, 100]),
             ( Opcode::OpJump, vec![200], vec![Opcode::OpJump as u8, 0, 200]),
             ( Opcode::OpNull, vec![], vec![Opcode::OpNull as u8]),
+            ( Opcode::OpGetGlobal, vec![1], vec![Opcode::OpGetGlobal as u8, 0, 1]),
+            ( Opcode::OpSetGlobal, vec![2], vec![Opcode::OpSetGlobal as u8, 0, 2]),
         ];
 
         for t in tests {

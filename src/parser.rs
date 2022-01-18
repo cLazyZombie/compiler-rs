@@ -454,6 +454,16 @@ mod tests {
     }
 
     #[test]
+    fn multiple_let_in_single_line() {
+        let input = "let one = 1; let two = 2;";
+        let statements = input_to_statements(input);
+        assert_eq!(statements.len(), 2);
+
+        check_let_statement(dbg!(&statements[0]), "one");
+        check_let_statement(&statements[1], "two");
+    }
+
+    #[test]
     fn let_block() {
         let input = "let val = { 1 + 2 };";
         let statements = input_to_statements(input);
