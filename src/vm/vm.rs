@@ -4,7 +4,7 @@ use num_enum::TryFromPrimitive;
 use crate::{
     code::{self, Opcode},
     compiler::Bytecode,
-    object::{BoolObject, IntObject, Object},
+    object::{BoolObject, IntObject, Object, StringObject},
 };
 
 use super::GlobalVars;
@@ -60,6 +60,11 @@ impl<'a> Vm<'a> {
                         (Some(Object::Int(left)), Some(Object::Int(right))) => {
                             let add_object = Object::Int(IntObject::new(left.val + right.val));
                             self.push(add_object)?;
+                        }
+                        (Some(Object::String(left)), Some(Object::String(right))) => {
+                            let string_object =
+                                Object::String(StringObject::new(left.val + &right.val));
+                            self.push(string_object)?;
                         }
                         (left, right) => panic!("left: {:?}, right: {:?}", left, right),
                     }
@@ -252,7 +257,7 @@ pub enum VmError {
 mod test {
     use crate::{
         compiler,
-        object::{IntObject, Object},
+        object::{IntObject, Object, StringObject},
     };
 
     use super::*;
@@ -331,6 +336,28 @@ mod test {
             (
                 "let one = 1; let two = one + one; one + two",
                 Object::Int(IntObject::new(3)),
+            ),
+        ];
+
+        for (s, expected) in input {
+            vm_test(s, &expected);
+        }
+    }
+
+    #[test]
+    fn string_expr() {
+        let input = [
+            (
+                "\"abc\"",
+                Object::String(StringObject::new("abc".to_string())),
+            ),
+            (
+                "\"abc\" + \"def\"",
+                Object::String(StringObject::new("abcdef".to_string())),
+            ),
+            (
+                "\"a\" + \"b\" + \"c\"",
+                Object::String(StringObject::new("abc".to_string())),
             ),
         ];
 

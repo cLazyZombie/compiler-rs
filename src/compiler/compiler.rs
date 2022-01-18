@@ -4,14 +4,14 @@ use crate::{
     ast::{self, NodeRef},
     code::{self, Opcode},
     lexer::Lexer,
-    object::{self, IntObject},
+    object::{IntObject, Object, StringObject},
     parser::Parser,
     token::Token,
 };
 
 pub struct Compiler<'a> {
     pub instructions: code::Instructions,
-    pub constants: Vec<object::Object>,
+    pub constants: Vec<Object>,
     symbol_table: &'a mut SymbolTable,
     last_instruction: Option<code::Opcode>,
     prev_instruction: Option<code::Opcode>,
@@ -58,9 +58,9 @@ impl<'a> Compiler<'a> {
             },
             ast::NodeRef::Expr(expr) => match expr {
                 ast::Expr::Number(num_expr) => {
-                    let num_obj = object::Object::Int(IntObject::new(num_expr.value));
+                    let num_obj = Object::Int(IntObject::new(num_expr.value));
                     let const_idx = self.add_constant(num_obj);
-                    let _ins_idx = self.emit(Opcode::OpConstant, &[const_idx]);
+                    self.emit(Opcode::OpConstant, &[const_idx]);
                 }
                 ast::Expr::Bool(bool_expr) => {
                     if bool_expr.value {
@@ -68,6 +68,11 @@ impl<'a> Compiler<'a> {
                     } else {
                         self.emit(Opcode::OpFalse, &[]);
                     }
+                }
+                ast::Expr::String(string_expr) => {
+                    let string_obj = Object::String(StringObject::new(string_expr.value.clone()));
+                    let const_idx = self.add_constant(string_obj);
+                    self.emit(Opcode::OpConstant, &[const_idx]);
                 }
                 ast::Expr::Infix(infix_expr) => match &infix_expr.op {
                     Token::Plus => {
@@ -178,7 +183,7 @@ impl<'a> Compiler<'a> {
         }
     }
 
-    fn add_constant(&mut self, constant: object::Object) -> u16 {
+    fn add_constant(&mut self, constant: Object) -> u16 {
         let idx = self.constants.len();
         self.constants.push(constant);
         idx as u16
@@ -242,7 +247,7 @@ pub fn compile(s: &str) -> Result<Bytecode, CompileError> {
 
 pub struct Bytecode {
     pub instructions: code::Instructions,
-    pub constants: Vec<object::Object>,
+    pub constants: Vec<Object>,
 }
 
 impl Bytecode {
@@ -322,7 +327,7 @@ mod tests {
     use crate::{
         code::Opcode,
         compiler::disassemble,
-        object::{IntObject, Object},
+        object::{IntObject, Object, StringObject},
     };
 
     use super::*;
@@ -580,6 +585,39 @@ mod tests {
                     code::make(Opcode::OpConstant, &[0]),
                     code::make(Opcode::OpSetGlobal, &[0]),
                     code::make(Opcode::OpGetGlobal, &[0]),
+                    code::make(Opcode::OpPop, &[]),
+                ],
+            ),
+        ];
+
+        for (input, constants, expected) in cases {
+            let bytecode = compile(input).unwrap();
+            assert_eq!(&bytecode.constants, &constants);
+            check_instructions_eq(&bytecode.instructions, &expected);
+        }
+    }
+
+    #[test]
+    fn string() {
+        let cases = [
+            (
+                "\"my string\"",
+                vec![Object::String(StringObject::new("my string".to_string()))],
+                vec![
+                    code::make(Opcode::OpConstant, &[0]),
+                    code::make(Opcode::OpPop, &[]),
+                ],
+            ),
+            (
+                "\"abc\" + \"def\"",
+                vec![
+                    Object::String(StringObject::new("abc".to_string())),
+                    Object::String(StringObject::new("def".to_string())),
+                ],
+                vec![
+                    code::make(Opcode::OpConstant, &[0]),
+                    code::make(Opcode::OpConstant, &[1]),
+                    code::make(Opcode::OpAdd, &[]),
                     code::make(Opcode::OpPop, &[]),
                 ],
             ),
