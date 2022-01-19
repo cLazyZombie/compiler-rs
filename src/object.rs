@@ -1,11 +1,12 @@
 use std::{
     fmt::Display,
+    hash::{Hash, Hasher},
     ops::{Add, Div, Mul, Sub},
 };
 
 use crate::{ast::Statement, token::IdentToken};
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum Object {
     Null,
     Int(IntObject),
@@ -181,7 +182,7 @@ impl TryInto<IntObject> for Object {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct IntObject {
     pub val: i32,
 }
@@ -234,13 +235,19 @@ impl Display for IntObject {
     }
 }
 
+impl From<i32> for IntObject {
+    fn from(val: i32) -> Self {
+        IntObject::new(val)
+    }
+}
+
 impl From<IntObject> for Object {
     fn from(i: IntObject) -> Self {
         Object::Int(i)
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct BoolObject {
     pub val: bool,
 }
@@ -267,7 +274,7 @@ impl Display for BoolObject {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct StringObject {
     pub val: String,
 }
@@ -290,7 +297,7 @@ impl Display for StringObject {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ArrayObject {
     pub array: Vec<Object>,
 }
@@ -330,7 +337,7 @@ impl Display for ArrayObject {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ReturnObject {
     pub val: Box<Object>,
 }
@@ -357,6 +364,12 @@ impl From<ReturnObject> for Object {
 pub struct FnObject {
     pub args: Vec<IdentToken>,
     pub body: Statement, // should be BlockStatement,
+}
+
+impl Hash for FnObject {
+    fn hash<H: Hasher>(&self, _state: &mut H) {
+        panic!("FnObject can not be Hashed");
+    }
 }
 
 impl std::cmp::PartialEq for FnObject {

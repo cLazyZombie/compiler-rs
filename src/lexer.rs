@@ -46,6 +46,7 @@ impl<'a> Lexer<'a> {
                     Token::Bang
                 }
             }
+            ':' => Token::Colon,
             ';' => Token::Semicolon,
             '(' => Token::LParen,
             ')' => Token::RParen,
@@ -401,6 +402,32 @@ mod tests {
             Token::Comma,
             Token::Int(2),
             Token::RBlock,
+            Token::Semicolon,
+        ];
+
+        for tok in expected_tokens {
+            assert_eq!(lexer.next_token(), Some(tok));
+        }
+    }
+
+    #[test]
+    fn create_hash() {
+        let input = r#"let a = {1:10, 2: 20};"#;
+        let mut lexer = Lexer::new(input);
+
+        let expected_tokens = [
+            Token::Let,
+            Token::Ident(IdentToken("a".to_string())),
+            Token::Assign,
+            Token::LBrace,
+            Token::Int(1),
+            Token::Colon,
+            Token::Int(10),
+            Token::Comma,
+            Token::Int(2),
+            Token::Colon,
+            Token::Int(20),
+            Token::RBrace,
             Token::Semicolon,
         ];
 

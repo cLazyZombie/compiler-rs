@@ -16,6 +16,7 @@ pub enum Token {
     Asterrisk, // *
     Slash,     // /
     Comma,
+    Colon,
     Semicolon,
     LParen,
     RParen,
@@ -91,6 +92,7 @@ impl Display for Token {
             Token::Asterrisk => write!(f, "*"),
             Token::Slash => write!(f, "/"),
             Token::Comma => write!(f, ","),
+            Token::Colon => write!(f, ":"),
             Token::Semicolon => write!(f, ";"),
             Token::LParen => write!(f, "("),
             Token::RParen => write!(f, ")"),

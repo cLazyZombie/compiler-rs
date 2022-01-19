@@ -188,13 +188,13 @@ pub enum Expr {
     String(StringExpr),
     Bool(BoolExpr),
     Array(ArrayExpr),
+    Hash(HashExpr),
     ArrayIndex(ArrayIndexExpr),
     Prefix(PrefixExpr),
     Infix(InfixExpr),
     If(IfExpr),
     Function(FuncExpr),
     Call(CallExpr),
-    Block(BlockExpr),
 }
 
 impl Expr {
@@ -234,7 +234,7 @@ impl Display for Expr {
             Expr::Call(call_expr) => write!(f, "{}", call_expr),
             Expr::Array(array_expr) => array_expr.fmt(f),
             Expr::ArrayIndex(array_index_expr) => array_index_expr.fmt(f),
-            Expr::Block(block_expr) => write!(f, "{}", block_expr.to_string()),
+            Expr::Hash(hash_expr) => hash_expr.fmt(f),
         }
     }
 }
@@ -315,6 +315,23 @@ impl Display for ArrayIndexExpr {
         self.ident.fmt(f)?;
         write!(f, "[")?;
         self.index_expr.fmt(f)?;
+        write!(f, "]")
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct HashExpr {
+    pub hash: Vec<(Expr, Expr)>,
+}
+
+impl Display for HashExpr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[")?;
+        for (key, val) in &self.hash {
+            key.fmt(f)?;
+            write!(f, ":")?;
+            val.fmt(f)?;
+        }
         write!(f, "]")
     }
 }

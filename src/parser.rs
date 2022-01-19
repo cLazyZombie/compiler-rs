@@ -1,7 +1,9 @@
 use snafu::{Backtrace, Snafu};
 
 use crate::{
-    ast::{self, ArrayExpr, ArrayIndexExpr, CallExpr, Expr, FuncExpr, InfixExpr, Statement},
+    ast::{
+        self, ArrayExpr, ArrayIndexExpr, CallExpr, Expr, FuncExpr, HashExpr, InfixExpr, Statement,
+    },
     lexer::Lexer,
     token::{IdentToken, Token},
 };
@@ -85,7 +87,6 @@ impl Parser {
             let statement = match token {
                 Token::Let => ast::Statement::LetStatement(self.parse_let_statement()?),
                 Token::Return => ast::Statement::ReturnStatement(self.parse_return_statement()?),
-                Token::LBrace => ast::Statement::BlockStatement(self.parse_block_statement()?),
                 _ => ast::Statement::ExprStatement(self.parse_expr_statement()?),
             };
             Ok(statement)
@@ -175,10 +176,10 @@ impl Parser {
                 Expr::new_prefix_expr(tok, exp)
             }
             (Token::LBlock, _) => self.parse_array()?,
+            (Token::LBrace, _) => self.parse_hash()?,
             (Token::LParen, _) => self.parse_group_expr()?,
             (Token::If, _) => self.parse_if_expr()?,
             (Token::Function, _) => self.parse_function_expr()?,
-            (Token::LBrace, _) => self.parse_block_expression()?,
             (tok, _) => {
                 let result = Expr::new_single_expr(tok.clone()).ok_or_else(|| {
                     let err = format!("expr token expected, but {:?}", tok);
@@ -233,6 +234,59 @@ impl Parser {
 
         let array_expr = ArrayExpr { array };
         Ok(Expr::Array(array_expr))
+    }
+
+    fn parse_hash(&mut self) -> Result<Expr, ParseError> {
+        self.expect_token(Token::LBrace)?;
+
+        let mut hash = Vec::new();
+
+        let mut key = None;
+        let mut value = None;
+        let mut key_phase = true; // 현재 key를 읽을 차례인지 value를 읽을 차례인지 (true: key, false: value)
+
+        loop {
+            let next_token = self.cur_token();
+            match next_token {
+                Some(Token::RBrace) => {
+                    if let (Some(key), Some(value)) = (key, value) {
+                        hash.push((key, value));
+                    }
+                    break;
+                }
+                Some(Token::Comma) => {
+                    if let (Some(key), Some(value)) = (key.take(), value.take()) {
+                        hash.push((key, value));
+                        key_phase = true;
+                    }
+                    self.advancd_token();
+                }
+                Some(Token::Colon) => {
+                    key_phase = false;
+                    self.advancd_token();
+                }
+                Some(_) => {
+                    let expr = self.parse_expr(Precedence::Lowest)?;
+                    if key_phase {
+                        key = Some(expr);
+                    } else {
+                        value = Some(expr);
+                    }
+                    key_phase = !key_phase;
+                }
+                _ => {
+                    return UnexpectedTokenSnafu {
+                        msg: format!("invalid hash element {:?}", next_token),
+                    }
+                    .fail()
+                }
+            }
+        }
+
+        self.expect_token(Token::RBrace)?;
+
+        let hash_expr = HashExpr { hash };
+        Ok(Expr::Hash(hash_expr))
     }
 
     fn parse_if_expr(&mut self) -> Result<Expr, ParseError> {
@@ -306,36 +360,6 @@ impl Parser {
         let block_statement = ast::BlockStatement { expr: block_expr };
 
         Ok(block_statement)
-    }
-
-    fn parse_block_expression(&mut self) -> Result<ast::Expr, ParseError> {
-        self.expect_token(Token::LBrace)?;
-        let statements = self.parse_statements()?;
-        self.expect_token(Token::RBrace)?;
-
-        if statements.len() == 0 {
-            let msg = format!("empty block expression");
-            return NormalSnafu { msg }.fail();
-        }
-
-        // check last statement has no semicolon
-        match statements.last() {
-            Some(Statement::ExprStatement(expr_stmt)) => {
-                if expr_stmt.semicolon {
-                    let msg = format!("last node in block statement shouldn't have semicolon");
-                    return NormalSnafu { msg }.fail();
-                }
-            }
-            _ => {
-                let msg = format!(
-                    "last node in block statement should be ExprStatement without semicolon"
-                );
-                return NormalSnafu { msg }.fail();
-            }
-        }
-
-        let block_expr = ast::Expr::Block(ast::BlockExpr { statements });
-        Ok(block_expr)
     }
 
     fn expect_token(&mut self, expected_tok: Token) -> Result<Token, ParseError> {
@@ -461,29 +485,6 @@ mod tests {
 
         check_let_statement(dbg!(&statements[0]), "one");
         check_let_statement(&statements[1], "two");
-    }
-
-    #[test]
-    fn let_block() {
-        let input = "let val = { 1 + 2 };";
-        let statements = input_to_statements(input);
-        assert_eq!(statements.len(), 1);
-    }
-
-    #[test]
-    fn block_statement() {
-        let input = "{ a; b; c}";
-        let stmts = input_to_statements(input);
-        let block_stmt = get_block_statement(&stmts[0]).unwrap();
-        assert_eq!(block_stmt.expr.statements.len(), 3);
-
-        for i in 0..block_stmt.expr.statements.len() {
-            let expr_statement = get_expr_statement(&block_stmt.expr.statements[i]).unwrap();
-            match i {
-                2 => assert_eq!(expr_statement.semicolon, false),
-                _ => assert_eq!(expr_statement.semicolon, true),
-            }
-        }
     }
 
     #[test]
@@ -774,6 +775,17 @@ mod tests {
         check_array_indexing_expr(&a_1.expr, IdentToken("a".to_string()), 1);
     }
 
+    #[test]
+    fn test_hash() {
+        let input = r#"
+            {1: 10, 2: 20};
+        "#;
+
+        let stmts = input_to_statements(input);
+        let expr_0 = get_expr_statement(&stmts[0]).unwrap();
+        check_int_hash_expr(&expr_0.expr, [(1, 10), (2, 20)]);
+    }
+
     fn get_call_expr(expr: &Expr) -> Option<&CallExpr> {
         match expr {
             Expr::Call(call_expr) => Some(call_expr),
@@ -915,6 +927,24 @@ mod tests {
                 }
             }
             _ => panic!("expected array expr, but {:?}", expr),
+        }
+    }
+
+    fn check_int_hash_expr(expr: &Expr, hash: impl IntoIterator<Item = (i32, i32)>) {
+        let mut expected = Vec::new();
+        for (key, val) in hash.into_iter() {
+            expected.push((key, val));
+        }
+
+        match expr {
+            Expr::Hash(hash_expr) => {
+                assert_eq!(hash_expr.hash.len(), expected.len());
+                for (input, expected) in hash_expr.hash.iter().zip(expected.iter()) {
+                    check_int_expr(&input.0, expected.0);
+                    check_int_expr(&input.1, expected.1);
+                }
+            }
+            _ => panic!("expected hash expr, but {:?}", expr),
         }
     }
 
