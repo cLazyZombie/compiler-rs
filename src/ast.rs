@@ -306,13 +306,13 @@ impl Display for ArrayExpr {
 
 #[derive(Debug, Clone)]
 pub struct ArrayIndexExpr {
-    pub ident: IdentToken,
+    pub array_expr: Box<Expr>,
     pub index_expr: Box<Expr>,
 }
 
 impl Display for ArrayIndexExpr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.ident.fmt(f)?;
+        self.array_expr.fmt(f)?;
         write!(f, "[")?;
         self.index_expr.fmt(f)?;
         write!(f, "]")

@@ -425,20 +425,13 @@ impl Parser {
                         }
                         // array index
                         Token::LBlock => {
-                            if let Expr::Identifier(ident_expr) = result {
-                                self.advancd_token();
-                                let index_expr = self.parse_expr(Precedence::Lowest)?;
-                                self.expect_token(Token::RBlock)?;
-                                result = Expr::ArrayIndex(ArrayIndexExpr {
-                                    ident: ident_expr.ident,
-                                    index_expr: Box::new(index_expr),
-                                });
-                            } else {
-                                UnexpectedTokenSnafu {
-                                    msg: format!("{:?} can not indexed", result),
-                                }
-                                .fail()?;
-                            }
+                            self.advancd_token();
+                            let index_expr = self.parse_expr(Precedence::Lowest)?;
+                            self.expect_token(Token::RBlock)?;
+                            result = Expr::ArrayIndex(ArrayIndexExpr {
+                                array_expr: Box::new(result),
+                                index_expr: Box::new(index_expr),
+                            });
                         }
                         _ => {
                             self.advancd_token();
@@ -769,10 +762,21 @@ mod tests {
         let stmts = input_to_statements(input);
 
         let a_0 = get_expr_statement(&stmts[1]).unwrap();
-        check_array_indexing_expr(&a_0.expr, IdentToken("a".to_string()), 0);
+        check_array_indexing_expr(&a_0.expr, "a", 0);
 
         let a_1 = get_expr_statement(&stmts[2]).unwrap();
-        check_array_indexing_expr(&a_1.expr, IdentToken("a".to_string()), 1);
+        check_array_indexing_expr(&a_1.expr, "a", 1);
+    }
+
+    #[test]
+    fn test_array_direct_indexing() {
+        let input = "[1, 2, 3][1 + 1]";
+        let stmts = input_to_statements(input);
+        let expr_stmt = get_expr_statement(&stmts[0]).unwrap();
+        let array_index_expr = get_array_index_expr(&expr_stmt.expr).unwrap();
+        check_int_array_expr(&array_index_expr.array_expr, &[1, 2, 3]);
+        // todo
+        // array expr, index expr 로 test
     }
 
     #[test]
@@ -919,6 +923,13 @@ mod tests {
         }
     }
 
+    fn get_array_index_expr(expr: &Expr) -> Option<&ArrayIndexExpr> {
+        match expr {
+            Expr::ArrayIndex(array_index_expr) => Some(array_index_expr),
+            _ => None,
+        }
+    }
+
     fn check_int_array_expr(expr: &Expr, array: &[i32]) {
         match expr {
             Expr::Array(array_expr) => {
@@ -959,10 +970,10 @@ mod tests {
         }
     }
 
-    fn check_array_indexing_expr(expr: &Expr, ident: IdentToken, index: i32) {
+    fn check_array_indexing_expr(expr: &Expr, array_name: &str, index: i32) {
         match expr {
             Expr::ArrayIndex(array_index_expr) => {
-                assert_eq!(array_index_expr.ident, ident);
+                check_identifier_expr(&array_index_expr.array_expr, array_name);
                 check_int_expr(&array_index_expr.index_expr, index);
             }
             _ => panic!("expected array indexing, but {:?}", expr),
