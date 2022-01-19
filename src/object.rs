@@ -108,6 +108,13 @@ impl Object {
             _ => None,
         }
     }
+
+    pub fn into_u16(self) -> Option<u16> {
+        match self {
+            Object::Int(int_obj) => Some(int_obj.val as u16),
+            _ => None,
+        }
+    }
 }
 
 impl Default for Object {

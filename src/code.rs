@@ -31,6 +31,7 @@ pub enum Opcode {
     OpGetGlobal,
     OpArray,
     OpHash,
+    OpIndex,
 }
 
 impl Opcode {
@@ -117,6 +118,10 @@ impl Opcode {
                 name: "OpHash",
                 operand_widths: vec![2],
             },
+            Opcode::OpIndex => Definition {
+                name: "OpIndex",
+                operand_widths: vec![],
+            },
         }
     }
 
@@ -186,6 +191,7 @@ mod tests {
             ( Opcode::OpSetGlobal, vec![2], vec![Opcode::OpSetGlobal as u8, 0, 2]),
             ( Opcode::OpArray, vec![2], vec![Opcode::OpArray as u8, 0, 2]),
             ( Opcode::OpHash, vec![2], vec![Opcode::OpHash as u8, 0, 2]),
+            ( Opcode::OpIndex, vec![], vec![Opcode::OpIndex as u8]),
         ];
 
         for t in tests {

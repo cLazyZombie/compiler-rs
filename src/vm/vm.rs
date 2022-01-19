@@ -239,6 +239,31 @@ impl<'a> Vm<'a> {
                     let hash_object = Object::Hash(hash.into());
                     self.push(hash_object)?;
                 }
+                Opcode::OpIndex => {
+                    let index = self.pop().unwrap();
+
+                    let collection = self.pop().unwrap();
+                    match collection {
+                        Object::Array(array_object) => {
+                            let index = index.into_u16().unwrap();
+                            if let Some(obj) = array_object.array.get(index as usize) {
+                                self.push(obj.clone())?;
+                            } else {
+                                self.push(Object::Null)?;
+                            }
+                        }
+                        Object::Hash(hash_object) => {
+                            if let Some(obj) = hash_object.hash.get(&index) {
+                                self.push(obj.clone())?;
+                            } else {
+                                self.push(Object::Null)?;
+                            }
+                        }
+                        _ => {
+                            panic!("can not apply OpIndex to {:?}", collection);
+                        }
+                    }
+                }
             }
         }
         Ok(())
@@ -449,6 +474,21 @@ mod test {
                     .into(),
                 ),
             ),
+        ];
+
+        for (s, expected) in input {
+            vm_test(s, &expected);
+        }
+    }
+
+    #[test]
+    fn index_expr() {
+        let input = [
+            (r#"[1][-1]"#, Object::Null),
+            (r#"{1:1, 2:2}[1]"#, Object::Int(1.into())),
+            (r#"{1:1, 2:2}[2]"#, Object::Int(2.into())),
+            (r#"{1:1, 2:2}[0]"#, Object::Null),
+            (r#"[][0]"#, Object::Null),
         ];
 
         for (s, expected) in input {

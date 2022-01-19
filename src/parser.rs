@@ -1,9 +1,7 @@
 use snafu::{Backtrace, Snafu};
 
 use crate::{
-    ast::{
-        self, ArrayExpr, ArrayIndexExpr, CallExpr, Expr, FuncExpr, HashExpr, InfixExpr, Statement,
-    },
+    ast::{self, ArrayExpr, CallExpr, Expr, FuncExpr, HashExpr, IndexExpr, InfixExpr, Statement},
     lexer::Lexer,
     token::{IdentToken, Token},
 };
@@ -428,8 +426,8 @@ impl Parser {
                             self.advancd_token();
                             let index_expr = self.parse_expr(Precedence::Lowest)?;
                             self.expect_token(Token::RBlock)?;
-                            result = Expr::ArrayIndex(ArrayIndexExpr {
-                                array_expr: Box::new(result),
+                            result = Expr::Index(IndexExpr {
+                                collection_expr: Box::new(result),
                                 index_expr: Box::new(index_expr),
                             });
                         }
@@ -774,7 +772,7 @@ mod tests {
         let stmts = input_to_statements(input);
         let expr_stmt = get_expr_statement(&stmts[0]).unwrap();
         let array_index_expr = get_array_index_expr(&expr_stmt.expr).unwrap();
-        check_int_array_expr(&array_index_expr.array_expr, &[1, 2, 3]);
+        check_int_array_expr(&array_index_expr.collection_expr, &[1, 2, 3]);
         // todo
         // array expr, index expr 로 test
     }
@@ -923,9 +921,9 @@ mod tests {
         }
     }
 
-    fn get_array_index_expr(expr: &Expr) -> Option<&ArrayIndexExpr> {
+    fn get_array_index_expr(expr: &Expr) -> Option<&IndexExpr> {
         match expr {
-            Expr::ArrayIndex(array_index_expr) => Some(array_index_expr),
+            Expr::Index(array_index_expr) => Some(array_index_expr),
             _ => None,
         }
     }
@@ -972,8 +970,8 @@ mod tests {
 
     fn check_array_indexing_expr(expr: &Expr, array_name: &str, index: i32) {
         match expr {
-            Expr::ArrayIndex(array_index_expr) => {
-                check_identifier_expr(&array_index_expr.array_expr, array_name);
+            Expr::Index(array_index_expr) => {
+                check_identifier_expr(&array_index_expr.collection_expr, array_name);
                 check_int_expr(&array_index_expr.index_expr, index);
             }
             _ => panic!("expected array indexing, but {:?}", expr),

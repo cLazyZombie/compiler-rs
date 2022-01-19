@@ -189,7 +189,7 @@ pub enum Expr {
     Bool(BoolExpr),
     Array(ArrayExpr),
     Hash(HashExpr),
-    ArrayIndex(ArrayIndexExpr),
+    Index(IndexExpr),
     Prefix(PrefixExpr),
     Infix(InfixExpr),
     If(IfExpr),
@@ -233,7 +233,7 @@ impl Display for Expr {
             Expr::Function(fn_expr) => write!(f, "{}", fn_expr),
             Expr::Call(call_expr) => write!(f, "{}", call_expr),
             Expr::Array(array_expr) => array_expr.fmt(f),
-            Expr::ArrayIndex(array_index_expr) => array_index_expr.fmt(f),
+            Expr::Index(array_index_expr) => array_index_expr.fmt(f),
             Expr::Hash(hash_expr) => hash_expr.fmt(f),
         }
     }
@@ -305,14 +305,14 @@ impl Display for ArrayExpr {
 }
 
 #[derive(Debug, Clone)]
-pub struct ArrayIndexExpr {
-    pub array_expr: Box<Expr>,
+pub struct IndexExpr {
+    pub collection_expr: Box<Expr>,
     pub index_expr: Box<Expr>,
 }
 
-impl Display for ArrayIndexExpr {
+impl Display for IndexExpr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.array_expr.fmt(f)?;
+        self.collection_expr.fmt(f)?;
         write!(f, "[")?;
         self.index_expr.fmt(f)?;
         write!(f, "]")
