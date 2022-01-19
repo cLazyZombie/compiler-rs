@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use byteorder::{BigEndian, ByteOrder};
 use num_enum::TryFromPrimitive;
 
@@ -224,6 +226,19 @@ impl<'a> Vm<'a> {
                     let array_object = Object::Array(array.into());
                     self.push(array_object)?;
                 }
+                Opcode::OpHash => {
+                    let count = self.read_u16_from_instructions();
+                    let mut hash: HashMap<Object, Object> = HashMap::new();
+
+                    for _ in 0..count {
+                        let value = self.pop().unwrap();
+                        let key = self.pop().unwrap();
+                        hash.insert(key, value);
+                    }
+
+                    let hash_object = Object::Hash(hash.into());
+                    self.push(hash_object)?;
+                }
             }
         }
         Ok(())
@@ -268,7 +283,7 @@ pub enum VmError {
 mod test {
     use crate::{
         compiler,
-        object::{ArrayObject, IntObject, Object, StringObject},
+        object::{ArrayObject, HashObject, IntObject, Object, StringObject},
     };
 
     use super::*;
@@ -383,19 +398,56 @@ mod test {
             ("[]", Object::Array(ArrayObject::new())),
             (
                 "[1, 2, 3]",
-                Object::Array(ArrayObject::from_iterator([
-                    Object::Int(IntObject::new(1)),
-                    Object::Int(IntObject::new(2)),
-                    Object::Int(IntObject::new(3)),
-                ])),
+                Object::Array(
+                    [
+                        Object::Int(IntObject::new(1)),
+                        Object::Int(IntObject::new(2)),
+                        Object::Int(IntObject::new(3)),
+                    ]
+                    .into(),
+                ),
             ),
             (
                 "[1 + 2, 3 * 4, 5 + 6]",
-                Object::Array(ArrayObject::from_iterator([
-                    Object::Int(IntObject::new(3)),
-                    Object::Int(IntObject::new(12)),
-                    Object::Int(IntObject::new(11)),
-                ])),
+                Object::Array(
+                    [
+                        Object::Int(IntObject::new(3)),
+                        Object::Int(IntObject::new(12)),
+                        Object::Int(IntObject::new(11)),
+                    ]
+                    .into(),
+                ),
+            ),
+        ];
+
+        for (s, expected) in input {
+            vm_test(s, &expected);
+        }
+    }
+
+    #[test]
+    fn hash_expr() {
+        let input = [
+            ("{}", Object::Hash(HashObject::new())),
+            (
+                "{1:10, 2:20}",
+                Object::Hash(
+                    [
+                        (Object::Int(1.into()), Object::Int(10.into())),
+                        (Object::Int(2.into()), Object::Int(20.into())),
+                    ]
+                    .into(),
+                ),
+            ),
+            (
+                "{1 + 1 : 2 * 2, 3 + 3 : 4 * 4}",
+                Object::Hash(
+                    [
+                        (Object::Int(2.into()), Object::Int(4.into())),
+                        (Object::Int(6.into()), Object::Int(16.into())),
+                    ]
+                    .into(),
+                ),
             ),
         ];
 

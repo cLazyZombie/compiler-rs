@@ -80,6 +80,13 @@ impl<'a> Compiler<'a> {
                     }
                     self.emit(Opcode::OpArray, &[array_expr.array.len() as u16]);
                 }
+                ast::Expr::Hash(hash_expr) => {
+                    for (key, value) in &hash_expr.hash {
+                        self.compile(key)?;
+                        self.compile(value)?;
+                    }
+                    self.emit(Opcode::OpHash, &[hash_expr.hash.len() as u16]);
+                }
                 ast::Expr::Infix(infix_expr) => match &infix_expr.op {
                     Token::Plus => {
                         self.compile(&*infix_expr.left)?;
@@ -358,6 +365,8 @@ mod tests {
         instructions.append(&mut code::make(Opcode::OpJump, &[200]));
         instructions.append(&mut code::make(Opcode::OpGetGlobal, &[1]));
         instructions.append(&mut code::make(Opcode::OpSetGlobal, &[2]));
+        instructions.append(&mut code::make(Opcode::OpArray, &[10]));
+        instructions.append(&mut code::make(Opcode::OpHash, &[10]));
 
         let expected = r#"0000 OpConstant 1
 0003 OpConstant 2
@@ -375,6 +384,8 @@ mod tests {
 0021 OpJump 200
 0024 OpGetGlobal 1
 0027 OpSetGlobal 2
+0030 OpArray 10
+0033 OpHash 10
 "#;
 
         assert_eq!(disassemble(&instructions).unwrap(), expected);
@@ -683,6 +694,43 @@ mod tests {
                     code::make(Opcode::OpConstant, &[5]),
                     code::make(Opcode::OpMul, &[]),
                     code::make(Opcode::OpArray, &[3]),
+                    code::make(Opcode::OpPop, &[]),
+                ],
+            ),
+        ];
+
+        for (input, constants, expected) in cases {
+            let bytecode = compile(input).unwrap();
+            assert_eq!(&bytecode.constants, &constants);
+            check_instructions_eq(&bytecode.instructions, &expected);
+        }
+    }
+
+    #[test]
+    fn compile_hash() {
+        let cases = [
+            (
+                "{}",
+                vec![],
+                vec![
+                    code::make(Opcode::OpHash, &[0]),
+                    code::make(Opcode::OpPop, &[]),
+                ],
+            ),
+            (
+                "{1:10, 2:20}",
+                vec![
+                    Object::Int(IntObject::new(1)),
+                    Object::Int(IntObject::new(10)),
+                    Object::Int(IntObject::new(2)),
+                    Object::Int(IntObject::new(20)),
+                ],
+                vec![
+                    code::make(Opcode::OpConstant, &[0]),
+                    code::make(Opcode::OpConstant, &[1]),
+                    code::make(Opcode::OpConstant, &[2]),
+                    code::make(Opcode::OpConstant, &[3]),
+                    code::make(Opcode::OpHash, &[2]),
                     code::make(Opcode::OpPop, &[]),
                 ],
             ),

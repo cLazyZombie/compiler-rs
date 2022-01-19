@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     fmt::Display,
     hash::{Hash, Hasher},
     ops::{Add, Div, Mul, Sub},
@@ -15,6 +16,7 @@ pub enum Object {
     String(StringObject),
     Fn(FnObject),
     Array(ArrayObject),
+    Hash(HashObject),
 }
 
 impl Object {
@@ -126,6 +128,7 @@ impl Display for Object {
             }
             Object::Fn(fn_object) => fn_object.fmt(f),
             Object::Array(array_object) => array_object.fmt(f),
+            Object::Hash(hash_object) => hash_object.fmt(f),
         }
     }
 }
@@ -162,6 +165,10 @@ impl TryInto<BoolObject> for Object {
             }),
             Object::Array(_) => Err(ObjectConvertError {
                 original_type: "Array".to_string(),
+                destinatin_type: "BoolObject".to_string(),
+            }),
+            Object::Hash(_) => Err(ObjectConvertError {
+                original_type: "Hash".to_string(),
                 destinatin_type: "BoolObject".to_string(),
             }),
         }
@@ -306,11 +313,6 @@ impl ArrayObject {
     pub fn new() -> Self {
         Self { array: Vec::new() }
     }
-
-    pub fn from_iterator(it: impl IntoIterator<Item = Object>) -> Self {
-        let array: Vec<Object> = it.into_iter().collect();
-        Self { array }
-    }
 }
 
 impl<It> From<It> for ArrayObject
@@ -334,6 +336,51 @@ impl Display for ArrayObject {
             item.fmt(f)?;
         }
         write!(f, "]")
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HashObject {
+    pub hash: HashMap<Object, Object>,
+}
+
+impl HashObject {
+    pub fn new() -> Self {
+        Self {
+            hash: HashMap::new(),
+        }
+    }
+}
+
+impl Hash for HashObject {
+    fn hash<H: Hasher>(&self, _state: &mut H) {
+        panic!("hash object can not be hash key");
+    }
+}
+
+impl<It> From<It> for HashObject
+where
+    It: IntoIterator<Item = (Object, Object)>,
+{
+    fn from(it: It) -> Self {
+        Self {
+            hash: it.into_iter().collect(),
+        }
+    }
+}
+
+impl Display for HashObject {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{{")?;
+        for (idx, (key, value)) in self.hash.iter().enumerate() {
+            if idx != 0 {
+                write!(f, ", ")?;
+            }
+            key.fmt(f)?;
+            write!(f, ":")?;
+            value.fmt(f)?;
+        }
+        write!(f, "}}")
     }
 }
 
