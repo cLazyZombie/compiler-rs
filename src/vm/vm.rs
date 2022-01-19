@@ -213,6 +213,17 @@ impl<'a> Vm<'a> {
 
                     *global = top;
                 }
+                Opcode::OpArray => {
+                    let array_len = self.read_u16_from_instructions();
+                    let mut array: Vec<Object> = vec![Object::Null; array_len as usize];
+
+                    for i in (0..array.len()).rev() {
+                        array[i] = self.pop().unwrap();
+                    }
+
+                    let array_object = Object::Array(array.into());
+                    self.push(array_object)?;
+                }
             }
         }
         Ok(())
@@ -257,7 +268,7 @@ pub enum VmError {
 mod test {
     use crate::{
         compiler,
-        object::{IntObject, Object, StringObject},
+        object::{ArrayObject, IntObject, Object, StringObject},
     };
 
     use super::*;
@@ -358,6 +369,33 @@ mod test {
             (
                 "\"a\" + \"b\" + \"c\"",
                 Object::String(StringObject::new("abc".to_string())),
+            ),
+        ];
+
+        for (s, expected) in input {
+            vm_test(s, &expected);
+        }
+    }
+
+    #[test]
+    fn array_expr() {
+        let input = [
+            ("[]", Object::Array(ArrayObject::new())),
+            (
+                "[1, 2, 3]",
+                Object::Array(ArrayObject::from_iterator([
+                    Object::Int(IntObject::new(1)),
+                    Object::Int(IntObject::new(2)),
+                    Object::Int(IntObject::new(3)),
+                ])),
+            ),
+            (
+                "[1 + 2, 3 * 4, 5 + 6]",
+                Object::Array(ArrayObject::from_iterator([
+                    Object::Int(IntObject::new(3)),
+                    Object::Int(IntObject::new(12)),
+                    Object::Int(IntObject::new(11)),
+                ])),
             ),
         ];
 

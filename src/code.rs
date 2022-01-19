@@ -29,6 +29,7 @@ pub enum Opcode {
     OpNull,
     OpSetGlobal,
     OpGetGlobal,
+    OpArray,
 }
 
 impl Opcode {
@@ -107,6 +108,10 @@ impl Opcode {
                 name: "OpSetGlobal",
                 operand_widths: vec![2],
             },
+            Opcode::OpArray => Definition {
+                name: "OpArray",
+                operand_widths: vec![2],
+            },
         }
     }
 
@@ -174,6 +179,7 @@ mod tests {
             ( Opcode::OpNull, vec![], vec![Opcode::OpNull as u8]),
             ( Opcode::OpGetGlobal, vec![1], vec![Opcode::OpGetGlobal as u8, 0, 1]),
             ( Opcode::OpSetGlobal, vec![2], vec![Opcode::OpSetGlobal as u8, 0, 2]),
+            ( Opcode::OpArray, vec![2], vec![Opcode::OpArray as u8, 0, 2]),
         ];
 
         for t in tests {

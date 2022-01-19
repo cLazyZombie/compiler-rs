@@ -13,6 +13,7 @@ pub enum Object {
     Return(ReturnObject),
     String(StringObject),
     Fn(FnObject),
+    Array(ArrayObject),
 }
 
 impl Object {
@@ -123,6 +124,7 @@ impl Display for Object {
                 write!(f, "null")
             }
             Object::Fn(fn_object) => fn_object.fmt(f),
+            Object::Array(array_object) => array_object.fmt(f),
         }
     }
 }
@@ -155,6 +157,10 @@ impl TryInto<BoolObject> for Object {
             }),
             Object::Fn(_) => Err(ObjectConvertError {
                 original_type: "Fn".to_string(),
+                destinatin_type: "BoolObject".to_string(),
+            }),
+            Object::Array(_) => Err(ObjectConvertError {
+                original_type: "Array".to_string(),
                 destinatin_type: "BoolObject".to_string(),
             }),
         }
@@ -283,6 +289,47 @@ impl Display for StringObject {
         write!(f, "\"{}\"", self.val)
     }
 }
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ArrayObject {
+    pub array: Vec<Object>,
+}
+
+impl ArrayObject {
+    pub fn new() -> Self {
+        Self { array: Vec::new() }
+    }
+
+    pub fn from_iterator(it: impl IntoIterator<Item = Object>) -> Self {
+        let array: Vec<Object> = it.into_iter().collect();
+        Self { array }
+    }
+}
+
+impl<It> From<It> for ArrayObject
+where
+    It: IntoIterator<Item = Object>,
+{
+    fn from(it: It) -> Self {
+        Self {
+            array: it.into_iter().collect(),
+        }
+    }
+}
+
+impl Display for ArrayObject {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[")?;
+        for (idx, item) in self.array.iter().enumerate() {
+            if idx != 0 {
+                write!(f, ", ")?;
+            }
+            item.fmt(f)?;
+        }
+        write!(f, "]")
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReturnObject {
     pub val: Box<Object>,

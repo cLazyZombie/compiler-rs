@@ -74,6 +74,12 @@ impl<'a> Compiler<'a> {
                     let const_idx = self.add_constant(string_obj);
                     self.emit(Opcode::OpConstant, &[const_idx]);
                 }
+                ast::Expr::Array(array_expr) => {
+                    for elem in &array_expr.array {
+                        self.compile(elem)?;
+                    }
+                    self.emit(Opcode::OpArray, &[array_expr.array.len() as u16]);
+                }
                 ast::Expr::Infix(infix_expr) => match &infix_expr.op {
                     Token::Plus => {
                         self.compile(&*infix_expr.left)?;
@@ -598,7 +604,7 @@ mod tests {
     }
 
     #[test]
-    fn string() {
+    fn compile_string() {
         let cases = [
             (
                 "\"my string\"",
@@ -618,6 +624,65 @@ mod tests {
                     code::make(Opcode::OpConstant, &[0]),
                     code::make(Opcode::OpConstant, &[1]),
                     code::make(Opcode::OpAdd, &[]),
+                    code::make(Opcode::OpPop, &[]),
+                ],
+            ),
+        ];
+
+        for (input, constants, expected) in cases {
+            let bytecode = compile(input).unwrap();
+            assert_eq!(&bytecode.constants, &constants);
+            check_instructions_eq(&bytecode.instructions, &expected);
+        }
+    }
+
+    #[test]
+    fn compile_array() {
+        let cases = [
+            (
+                "[]",
+                vec![],
+                vec![
+                    code::make(Opcode::OpArray, &[0]),
+                    code::make(Opcode::OpPop, &[]),
+                ],
+            ),
+            (
+                "[1, 2, 3]",
+                vec![
+                    Object::Int(IntObject::new(1)),
+                    Object::Int(IntObject::new(2)),
+                    Object::Int(IntObject::new(3)),
+                ],
+                vec![
+                    code::make(Opcode::OpConstant, &[0]),
+                    code::make(Opcode::OpConstant, &[1]),
+                    code::make(Opcode::OpConstant, &[2]),
+                    code::make(Opcode::OpArray, &[3]),
+                    code::make(Opcode::OpPop, &[]),
+                ],
+            ),
+            (
+                "[1 + 2, 3 - 4, 5 * 6]",
+                vec![
+                    Object::Int(IntObject::new(1)),
+                    Object::Int(IntObject::new(2)),
+                    Object::Int(IntObject::new(3)),
+                    Object::Int(IntObject::new(4)),
+                    Object::Int(IntObject::new(5)),
+                    Object::Int(IntObject::new(6)),
+                ],
+                vec![
+                    code::make(Opcode::OpConstant, &[0]),
+                    code::make(Opcode::OpConstant, &[1]),
+                    code::make(Opcode::OpAdd, &[]),
+                    code::make(Opcode::OpConstant, &[2]),
+                    code::make(Opcode::OpConstant, &[3]),
+                    code::make(Opcode::OpSub, &[]),
+                    code::make(Opcode::OpConstant, &[4]),
+                    code::make(Opcode::OpConstant, &[5]),
+                    code::make(Opcode::OpMul, &[]),
+                    code::make(Opcode::OpArray, &[3]),
                     code::make(Opcode::OpPop, &[]),
                 ],
             ),
