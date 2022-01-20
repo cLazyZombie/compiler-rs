@@ -1,198 +1,174 @@
 use std::collections::HashMap;
 
-use num_enum::TryFromPrimitive;
-
 use crate::{
     code::{self, Opcode},
     compiler::Bytecode,
     object::{BoolObject, IntObject, Object, StringObject},
 };
 
-use super::{Frame, GlobalVars};
+use super::{Constants, Frames, GlobalVars, Stack};
 
 pub struct Vm<'a> {
-    constants: Vec<Object>,
-    stack: Vec<Object>, // todo. stack 으로 빼기
-    sp: usize,
-    start_frame: Frame,
+    constants: Constants,
+    stack: Stack,
+    frames: Frames,
     globals: &'a mut GlobalVars,
-    pub last_popped_stack_element: Object,
 }
 
 impl<'a> Vm<'a> {
-    const STACK_SIZE: usize = 1024;
-    const FRAME_SIZE: usize = 1024;
-
     pub fn new(bytecode: Bytecode, globals: &'a mut GlobalVars) -> Self {
         Self {
-            constants: bytecode.constants,
-            stack: vec![Object::Null; Self::STACK_SIZE],
-            start_frame: Frame::new(bytecode.instructions),
+            constants: Constants::new(bytecode.constants),
+            frames: Frames::new(bytecode.instructions),
             globals: globals,
-            sp: 0,
-            last_popped_stack_element: Object::default(),
+            stack: Stack::new(),
         }
     }
 
     pub fn run(&mut self) -> Result<(), VmError> {
-        // vm 안으로 집어넣자
-        let mut frames = Vec::with_capacity(Self::FRAME_SIZE);
-        frames.push(self.start_frame.clone());
-
-        loop {
-            let frame = frames.last_mut().unwrap();
-            if frame.ip >= frame.instructions.len() {
-                break;
-            }
-            // while self.frames.last().unwrap().ip < self.frames.last()
-            // while self.ip < self.instructions.len() {
-            let op_raw = frame.instructions[frame.ip];
-            let op = code::Opcode::try_from_primitive(op_raw);
-            if op.is_err() {
-                return Err(VmError::GeneralError(format!(
-                    "can not convert {} to Opcode",
-                    op_raw
-                )));
-            }
-            let op = op.unwrap();
-            frame.ip += 1;
+        while !self.frames.cur_frame().no_more_instructions() {
+            let frame = self.frames.cur_frame_mut();
+            let op = frame.read_op()?;
 
             match op {
                 code::Opcode::OpConstant => {
                     let const_index = frame.read_u16_from_instructions();
-                    self.push(self.constants[const_index as usize].clone())?;
+                    self.stack.push(self.constants.get(const_index).clone())?;
                 }
                 code::Opcode::OpAdd => {
-                    let right = self.pop();
-                    let left = self.pop();
+                    let right = self.stack.pop();
+                    let left = self.stack.pop();
 
                     match (left, right) {
                         (Some(Object::Int(left)), Some(Object::Int(right))) => {
                             let add_object = Object::Int(IntObject::new(left.val + right.val));
-                            self.push(add_object)?;
+                            self.stack.push(add_object)?;
                         }
                         (Some(Object::String(left)), Some(Object::String(right))) => {
                             let string_object =
                                 Object::String(StringObject::new(left.val + &right.val));
-                            self.push(string_object)?;
+                            self.stack.push(string_object)?;
                         }
                         (left, right) => panic!("left: {:?}, right: {:?}", left, right),
                     }
                 }
                 code::Opcode::OpSub => {
-                    let right = self.pop();
-                    let left = self.pop();
+                    let right = self.stack.pop();
+                    let left = self.stack.pop();
 
                     match (left, right) {
                         (Some(Object::Int(left)), Some(Object::Int(right))) => {
                             let add_object = Object::Int(IntObject::new(left.val - right.val));
-                            self.push(add_object)?;
+                            self.stack.push(add_object)?;
                         }
                         (left, right) => panic!("left: {:?}, right: {:?}", left, right),
                     }
                 }
                 code::Opcode::OpMul => {
-                    let right = self.pop();
-                    let left = self.pop();
+                    let right = self.stack.pop();
+                    let left = self.stack.pop();
 
                     match (left, right) {
                         (Some(Object::Int(left)), Some(Object::Int(right))) => {
                             let add_object = Object::Int(IntObject::new(left.val * right.val));
-                            self.push(add_object)?;
+                            self.stack.push(add_object)?;
                         }
                         (left, right) => panic!("left: {:?}, right: {:?}", left, right),
                     }
                 }
                 code::Opcode::OpDiv => {
-                    let right = self.pop();
-                    let left = self.pop();
+                    let right = self.stack.pop();
+                    let left = self.stack.pop();
 
                     match (left, right) {
                         (Some(Object::Int(left)), Some(Object::Int(right))) => {
                             let add_object = Object::Int(IntObject::new(left.val / right.val));
-                            self.push(add_object)?;
+                            self.stack.push(add_object)?;
                         }
                         (left, right) => panic!("left: {:?}, right: {:?}", left, right),
                     }
                 }
                 code::Opcode::OpPop => {
-                    self.pop().unwrap();
+                    self.stack.pop().unwrap();
                 }
                 Opcode::OpTrue => {
-                    self.push(Object::Bool(BoolObject::new(true)))?;
+                    self.stack.push(Object::Bool(BoolObject::new(true)))?;
                 }
                 Opcode::OpFalse => {
-                    self.push(Object::Bool(BoolObject::new(false)))?;
+                    self.stack.push(Object::Bool(BoolObject::new(false)))?;
                 }
                 Opcode::OpEqual => {
-                    let right = self.pop();
-                    let left = self.pop();
+                    let right = self.stack.pop();
+                    let left = self.stack.pop();
 
                     match (left, right) {
                         (Some(left), Some(right)) => {
                             if let Some(Object::Bool(bool_obj)) = left.eq(&right) {
-                                self.push(Object::Bool(BoolObject::new(bool_obj.val)))?;
+                                self.stack
+                                    .push(Object::Bool(BoolObject::new(bool_obj.val)))?;
                             } else {
-                                self.push(Object::Bool(BoolObject::new(false)))?;
+                                self.stack.push(Object::Bool(BoolObject::new(false)))?;
                             }
                         }
                         _ => {
-                            self.push(Object::Bool(BoolObject::new(false)))?;
+                            self.stack.push(Object::Bool(BoolObject::new(false)))?;
                         }
                     }
                 }
                 Opcode::OpNotEqual => {
-                    let right = self.pop();
-                    let left = self.pop();
+                    let right = self.stack.pop();
+                    let left = self.stack.pop();
 
                     match (left, right) {
                         (Some(left), Some(right)) => {
                             if let Some(Object::Bool(bool_obj)) = left.eq(&right) {
-                                self.push(Object::Bool(BoolObject::new(!bool_obj.val)))?;
+                                self.stack
+                                    .push(Object::Bool(BoolObject::new(!bool_obj.val)))?;
                             } else {
-                                self.push(Object::Bool(BoolObject::new(true)))?;
+                                self.stack.push(Object::Bool(BoolObject::new(true)))?;
                             }
                         }
                         _ => {
-                            self.push(Object::Bool(BoolObject::new(false)))?;
+                            self.stack.push(Object::Bool(BoolObject::new(false)))?;
                         }
                     }
                 }
                 Opcode::OpGreaterThan => {
-                    let right = self.pop();
-                    let left = self.pop();
+                    let right = self.stack.pop();
+                    let left = self.stack.pop();
 
                     match (left, right) {
                         (Some(left), Some(right)) => {
                             if let Some(Object::Bool(bool_obj)) = left.gt(&right) {
-                                self.push(Object::Bool(BoolObject::new(bool_obj.val)))?;
+                                self.stack
+                                    .push(Object::Bool(BoolObject::new(bool_obj.val)))?;
                             } else {
-                                self.push(Object::Bool(BoolObject::new(false)))?;
+                                self.stack.push(Object::Bool(BoolObject::new(false)))?;
                             }
                         }
                         _ => {
-                            self.push(Object::Bool(BoolObject::new(false)))?;
+                            self.stack.push(Object::Bool(BoolObject::new(false)))?;
                         }
                     }
                 }
                 Opcode::OpNegate => {
-                    if let Some(operand) = self.pop() {
+                    if let Some(operand) = self.stack.pop() {
                         if let Some(negated) = operand.negate() {
-                            self.push(negated)?;
+                            self.stack.push(negated)?;
                         } else {
-                            self.push(Object::Bool(BoolObject::new(false)))?;
+                            self.stack.push(Object::Bool(BoolObject::new(false)))?;
                         }
                     }
                 }
                 Opcode::OpBang => {
-                    if let Some(operand) = self.pop() {
+                    if let Some(operand) = self.stack.pop() {
                         if let Some(banged) = operand.bang() {
-                            self.push(banged)?;
+                            self.stack.push(banged)?;
                         }
                     }
                 }
                 Opcode::OpJumpNotTruthy => {
-                    let condition = match self.pop() {
+                    let condition = match self.stack.pop() {
                         Some(Object::Bool(bool_obj)) => bool_obj.val,
                         _ => false,
                     };
@@ -207,16 +183,16 @@ impl<'a> Vm<'a> {
                     frame.ip = jump_addr as usize;
                 }
                 Opcode::OpNull => {
-                    self.push(Object::Null)?;
+                    self.stack.push(Object::Null)?;
                 }
                 Opcode::OpGetGlobal => {
                     let idx = frame.read_u16_from_instructions();
                     let global = self.globals.get(idx).unwrap();
                     let clonned = global.clone();
-                    self.push(clonned)?;
+                    self.stack.push(clonned)?;
                 }
                 Opcode::OpSetGlobal => {
-                    let top = self.pop().unwrap();
+                    let top = self.stack.pop().unwrap();
 
                     let idx = frame.read_u16_from_instructions();
                     let global = self.globals.get_mut(idx).unwrap();
@@ -228,43 +204,43 @@ impl<'a> Vm<'a> {
                     let mut array: Vec<Object> = vec![Object::Null; array_len as usize];
 
                     for i in (0..array.len()).rev() {
-                        array[i] = self.pop().unwrap();
+                        array[i] = self.stack.pop().unwrap();
                     }
 
                     let array_object = Object::Array(array.into());
-                    self.push(array_object)?;
+                    self.stack.push(array_object)?;
                 }
                 Opcode::OpHash => {
                     let count = frame.read_u16_from_instructions();
                     let mut hash: HashMap<Object, Object> = HashMap::new();
 
                     for _ in 0..count {
-                        let value = self.pop().unwrap();
-                        let key = self.pop().unwrap();
+                        let value = self.stack.pop().unwrap();
+                        let key = self.stack.pop().unwrap();
                         hash.insert(key, value);
                     }
 
                     let hash_object = Object::Hash(hash.into());
-                    self.push(hash_object)?;
+                    self.stack.push(hash_object)?;
                 }
                 Opcode::OpIndex => {
-                    let index = self.pop().unwrap();
+                    let index = self.stack.pop().unwrap();
 
-                    let collection = self.pop().unwrap();
+                    let collection = self.stack.pop().unwrap();
                     match collection {
                         Object::Array(array_object) => {
                             let index = index.into_u16().unwrap();
                             if let Some(obj) = array_object.array.get(index as usize) {
-                                self.push(obj.clone())?;
+                                self.stack.push(obj.clone())?;
                             } else {
-                                self.push(Object::Null)?;
+                                self.stack.push(Object::Null)?;
                             }
                         }
                         Object::Hash(hash_object) => {
                             if let Some(obj) = hash_object.hash.get(&index) {
-                                self.push(obj.clone())?;
+                                self.stack.push(obj.clone())?;
                             } else {
-                                self.push(Object::Null)?;
+                                self.stack.push(Object::Null)?;
                             }
                         }
                         _ => {
@@ -286,33 +262,8 @@ impl<'a> Vm<'a> {
         Ok(())
     }
 
-    // fn read_u16_from_instructions(&mut self) -> u16 {
-    //     let val = BigEndian::read_u16(&mut self.instructions[self.ip..]);
-    //     self.ip += 2;
-    //     val
-    // }
-
-    fn push(&mut self, obj: Object) -> Result<(), VmError> {
-        if self.sp >= Self::STACK_SIZE {
-            return Err(VmError::GeneralError("stack overflow".to_string()));
-        }
-
-        self.stack[self.sp] = obj;
-        self.sp += 1;
-
-        Ok(())
-    }
-
-    fn pop(&mut self) -> Option<Object> {
-        if self.sp == 0 {
-            self.last_popped_stack_element = Object::Null;
-            None
-        } else {
-            let obj = std::mem::take(&mut self.stack[self.sp - 1]);
-            self.last_popped_stack_element = obj.clone();
-            self.sp -= 1;
-            Some(obj)
-        }
+    pub fn last_popped_stack_element(&self) -> Object {
+        self.stack.last_popped_stack_element.clone()
     }
 }
 
@@ -522,7 +473,7 @@ mod test {
         vm.run().unwrap();
 
         assert_eq!(
-            &vm.last_popped_stack_element,
+            &vm.stack.last_popped_stack_element,
             expected,
             "input: {}, asm: {}, expected: {}",
             s,

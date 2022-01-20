@@ -24,7 +24,7 @@ fn main() {
         let bytecode = compiler.bytecode();
         let mut vm = Vm::new(bytecode, &mut global_vars);
         vm.run().unwrap();
-        println!("{}", vm.last_popped_stack_element.to_string());
+        println!("{}", vm.last_popped_stack_element().to_string());
 
         print!(">> ");
         let _ = io::stdout().lock().flush();
