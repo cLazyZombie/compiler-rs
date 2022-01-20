@@ -397,7 +397,7 @@ impl Display for HashObject {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct CompiledFnObject {
     instructions: code::Instructions,
 }
@@ -416,6 +416,16 @@ impl Display for CompiledFnObject {
         } else {
             Err(std::fmt::Error)
         }
+    }
+}
+
+impl std::fmt::Debug for CompiledFnObject {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let disassembled =
+            compiler::disassemble(&self.instructions).unwrap_or(format!("{:?}", self.instructions));
+        f.debug_struct("CompiledFnObject")
+            .field("instructions", &disassembled)
+            .finish()
     }
 }
 

@@ -201,6 +201,17 @@ impl<'a> Compiler<'a> {
                 ast::Expr::Function(fn_expr) => {
                     self.enter_scope();
                     self.compile(&*fn_expr.body)?;
+
+                    // function 인데 return 으로 끝나지 않았으면 최종 pop된 값을 return으로 바꾼다
+                    if self.last_instruction_is_pop() {
+                        self.remove_last_pop();
+                        self.emit(Opcode::OpReturnValue, &[]);
+                    }
+
+                    if !self.last_instruction_is(Opcode::OpReturnValue) {
+                        self.emit(Opcode::OpReturn, &[]);
+                    }
+
                     let mut instructions = Vec::new(); //= self.scopes.last_mut().unwrap().instructions;
                     std::mem::swap(
                         &mut instructions,
@@ -247,10 +258,14 @@ impl<'a> Compiler<'a> {
     }
 
     fn last_instruction_is_pop(&self) -> bool {
+        self.last_instruction_is(Opcode::OpPop)
+    }
+
+    fn last_instruction_is(&self, op: Opcode) -> bool {
         let cur_scope = self.scopes.last().unwrap();
 
         if let Some(last_instruction) = &cur_scope.last_instruction {
-            last_instruction == &code::Opcode::OpPop
+            last_instruction == &op
         } else {
             false
         }
@@ -875,26 +890,58 @@ mod tests {
 
     #[test]
     fn compile_fn() {
-        let cases = [(
-            r#"fn() { return 5 + 10; }"#,
-            vec![
-                Object::Int(5.into()),
-                Object::Int(10.into()),
-                Object::CompiledFn(
-                    vec![
-                        code::make(Opcode::OpConstant, &[0]),
-                        code::make(Opcode::OpConstant, &[1]),
-                        code::make(Opcode::OpAdd, &[]),
-                        code::make(Opcode::OpReturnValue, &[]),
-                    ]
-                    .into(),
-                ),
-            ],
-            vec![
-                code::make(Opcode::OpConstant, &[2]),
-                code::make(Opcode::OpPop, &[]),
-            ],
-        )];
+        let cases = [
+            (
+                r#"fn() { return 5 + 10; }"#,
+                vec![
+                    Object::Int(5.into()),
+                    Object::Int(10.into()),
+                    Object::CompiledFn(
+                        vec![
+                            code::make(Opcode::OpConstant, &[0]),
+                            code::make(Opcode::OpConstant, &[1]),
+                            code::make(Opcode::OpAdd, &[]),
+                            code::make(Opcode::OpReturnValue, &[]),
+                        ]
+                        .into(),
+                    ),
+                ],
+                vec![
+                    code::make(Opcode::OpConstant, &[2]),
+                    code::make(Opcode::OpPop, &[]),
+                ],
+            ),
+            (
+                r#"fn() { 5 + 10 }"#,
+                vec![
+                    Object::Int(5.into()),
+                    Object::Int(10.into()),
+                    Object::CompiledFn(
+                        vec![
+                            code::make(Opcode::OpConstant, &[0]),
+                            code::make(Opcode::OpConstant, &[1]),
+                            code::make(Opcode::OpAdd, &[]),
+                            code::make(Opcode::OpReturnValue, &[]),
+                        ]
+                        .into(),
+                    ),
+                ],
+                vec![
+                    code::make(Opcode::OpConstant, &[2]),
+                    code::make(Opcode::OpPop, &[]),
+                ],
+            ),
+            (
+                r#"fn() { }"#,
+                vec![Object::CompiledFn(
+                    vec![code::make(Opcode::OpReturn, &[])].into(),
+                )],
+                vec![
+                    code::make(Opcode::OpConstant, &[0]),
+                    code::make(Opcode::OpPop, &[]),
+                ],
+            ),
+        ];
 
         for (input, constants, expected) in cases {
             let bytecode = compile(input).unwrap();
