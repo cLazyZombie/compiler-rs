@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use byteorder::{BigEndian, ByteOrder};
 use num_enum::TryFromPrimitive;
 
 use crate::{
@@ -9,36 +8,45 @@ use crate::{
     object::{BoolObject, IntObject, Object, StringObject},
 };
 
-use super::GlobalVars;
+use super::{Frame, GlobalVars};
 
 pub struct Vm<'a> {
     constants: Vec<Object>,
-    instructions: code::Instructions,
-    stack: Vec<Object>,
-    globals: &'a mut GlobalVars,
+    stack: Vec<Object>, // todo. stack 으로 빼기
     sp: usize,
-    ip: usize,
+    start_frame: Frame,
+    globals: &'a mut GlobalVars,
     pub last_popped_stack_element: Object,
 }
 
 impl<'a> Vm<'a> {
     const STACK_SIZE: usize = 1024;
+    const FRAME_SIZE: usize = 1024;
 
     pub fn new(bytecode: Bytecode, globals: &'a mut GlobalVars) -> Self {
         Self {
             constants: bytecode.constants,
-            instructions: bytecode.instructions,
             stack: vec![Object::Null; Self::STACK_SIZE],
+            start_frame: Frame::new(bytecode.instructions),
             globals: globals,
             sp: 0,
-            ip: 0,
             last_popped_stack_element: Object::default(),
         }
     }
 
     pub fn run(&mut self) -> Result<(), VmError> {
-        while self.ip < self.instructions.len() {
-            let op_raw = self.instructions[self.ip];
+        // vm 안으로 집어넣자
+        let mut frames = Vec::with_capacity(Self::FRAME_SIZE);
+        frames.push(self.start_frame.clone());
+
+        loop {
+            let frame = frames.last_mut().unwrap();
+            if frame.ip >= frame.instructions.len() {
+                break;
+            }
+            // while self.frames.last().unwrap().ip < self.frames.last()
+            // while self.ip < self.instructions.len() {
+            let op_raw = frame.instructions[frame.ip];
             let op = code::Opcode::try_from_primitive(op_raw);
             if op.is_err() {
                 return Err(VmError::GeneralError(format!(
@@ -47,11 +55,11 @@ impl<'a> Vm<'a> {
                 )));
             }
             let op = op.unwrap();
-            self.ip += 1;
+            frame.ip += 1;
 
             match op {
                 code::Opcode::OpConstant => {
-                    let const_index = self.read_u16_from_instructions();
+                    let const_index = frame.read_u16_from_instructions();
                     self.push(self.constants[const_index as usize].clone())?;
                 }
                 code::Opcode::OpAdd => {
@@ -188,21 +196,21 @@ impl<'a> Vm<'a> {
                         Some(Object::Bool(bool_obj)) => bool_obj.val,
                         _ => false,
                     };
-                    let jump_addr = self.read_u16_from_instructions();
+                    let jump_addr = frame.read_u16_from_instructions();
 
                     if condition == false {
-                        self.ip = jump_addr as usize;
+                        frame.ip = jump_addr as usize;
                     }
                 }
                 Opcode::OpJump => {
-                    let jump_addr = self.read_u16_from_instructions();
-                    self.ip = jump_addr as usize;
+                    let jump_addr = frame.read_u16_from_instructions();
+                    frame.ip = jump_addr as usize;
                 }
                 Opcode::OpNull => {
                     self.push(Object::Null)?;
                 }
                 Opcode::OpGetGlobal => {
-                    let idx = self.read_u16_from_instructions();
+                    let idx = frame.read_u16_from_instructions();
                     let global = self.globals.get(idx).unwrap();
                     let clonned = global.clone();
                     self.push(clonned)?;
@@ -210,13 +218,13 @@ impl<'a> Vm<'a> {
                 Opcode::OpSetGlobal => {
                     let top = self.pop().unwrap();
 
-                    let idx = self.read_u16_from_instructions();
+                    let idx = frame.read_u16_from_instructions();
                     let global = self.globals.get_mut(idx).unwrap();
 
                     *global = top;
                 }
                 Opcode::OpArray => {
-                    let array_len = self.read_u16_from_instructions();
+                    let array_len = frame.read_u16_from_instructions();
                     let mut array: Vec<Object> = vec![Object::Null; array_len as usize];
 
                     for i in (0..array.len()).rev() {
@@ -227,7 +235,7 @@ impl<'a> Vm<'a> {
                     self.push(array_object)?;
                 }
                 Opcode::OpHash => {
-                    let count = self.read_u16_from_instructions();
+                    let count = frame.read_u16_from_instructions();
                     let mut hash: HashMap<Object, Object> = HashMap::new();
 
                     for _ in 0..count {
@@ -278,11 +286,11 @@ impl<'a> Vm<'a> {
         Ok(())
     }
 
-    fn read_u16_from_instructions(&mut self) -> u16 {
-        let val = BigEndian::read_u16(&mut self.instructions[self.ip..]);
-        self.ip += 2;
-        val
-    }
+    // fn read_u16_from_instructions(&mut self) -> u16 {
+    //     let val = BigEndian::read_u16(&mut self.instructions[self.ip..]);
+    //     self.ip += 2;
+    //     val
+    // }
 
     fn push(&mut self, obj: Object) -> Result<(), VmError> {
         if self.sp >= Self::STACK_SIZE {
