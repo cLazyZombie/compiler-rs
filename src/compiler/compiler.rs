@@ -223,8 +223,9 @@ impl<'a> Compiler<'a> {
 
                     self.emit(Opcode::OpConstant, &[const_idx]);
                 }
-                _ => {
-                    panic!("{:?} is not yet implemented", expr);
+                ast::Expr::Call(call_expr) => {
+                    self.compile(&*call_expr.func)?;
+                    self.emit(Opcode::OpCall, &[]);
                 }
             },
         }
@@ -938,6 +939,56 @@ mod tests {
                 )],
                 vec![
                     code::make(Opcode::OpConstant, &[0]),
+                    code::make(Opcode::OpPop, &[]),
+                ],
+            ),
+        ];
+
+        for (input, constants, expected) in cases {
+            let bytecode = compile(input).unwrap();
+            assert_eq!(&bytecode.constants, &constants);
+            check_instructions_eq(&bytecode.instructions, &expected);
+        }
+    }
+
+    #[test]
+    fn compile_fn_call() {
+        let cases = [
+            (
+                r#"fn() { 24 }();"#,
+                vec![
+                    Object::Int(24.into()),
+                    Object::CompiledFn(
+                        vec![
+                            code::make(Opcode::OpConstant, &[0]),
+                            code::make(Opcode::OpReturnValue, &[]),
+                        ]
+                        .into(),
+                    ),
+                ],
+                vec![
+                    code::make(Opcode::OpConstant, &[1]),
+                    code::make(Opcode::OpCall, &[]),
+                    code::make(Opcode::OpPop, &[]),
+                ],
+            ),
+            (
+                r#"let no_arg = fn() { 24 }; no_arg()"#,
+                vec![
+                    Object::Int(24.into()),
+                    Object::CompiledFn(
+                        vec![
+                            code::make(Opcode::OpConstant, &[0]),
+                            code::make(Opcode::OpReturnValue, &[]),
+                        ]
+                        .into(),
+                    ),
+                ],
+                vec![
+                    code::make(Opcode::OpConstant, &[1]),
+                    code::make(Opcode::OpSetGlobal, &[0]),
+                    code::make(Opcode::OpGetGlobal, &[0]),
+                    code::make(Opcode::OpCall, &[]),
                     code::make(Opcode::OpPop, &[]),
                 ],
             ),
