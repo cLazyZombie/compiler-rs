@@ -5,7 +5,7 @@ use std::{
     ops::{Add, Div, Mul, Sub},
 };
 
-use crate::{ast::Statement, token::IdentToken};
+use crate::{ast::Statement, code, compiler, token::IdentToken};
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum Object {
@@ -17,6 +17,7 @@ pub enum Object {
     Fn(FnObject),
     Array(ArrayObject),
     Hash(HashObject),
+    CompiledFn(CompiledFnObject),
 }
 
 impl Object {
@@ -136,6 +137,7 @@ impl Display for Object {
             Object::Fn(fn_object) => fn_object.fmt(f),
             Object::Array(array_object) => array_object.fmt(f),
             Object::Hash(hash_object) => hash_object.fmt(f),
+            Object::CompiledFn(compiled_fn_object) => compiled_fn_object.fmt(f),
         }
     }
 }
@@ -176,6 +178,10 @@ impl TryInto<BoolObject> for Object {
             }),
             Object::Hash(_) => Err(ObjectConvertError {
                 original_type: "Hash".to_string(),
+                destinatin_type: "BoolObject".to_string(),
+            }),
+            Object::CompiledFn(_) => Err(ObjectConvertError {
+                original_type: "CompiledFn".to_string(),
                 destinatin_type: "BoolObject".to_string(),
             }),
         }
@@ -388,6 +394,35 @@ impl Display for HashObject {
             value.fmt(f)?;
         }
         write!(f, "}}")
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct CompiledFnObject {
+    instructions: code::Instructions,
+}
+
+impl CompiledFnObject {
+    pub fn new(instructions: code::Instructions) -> Self {
+        Self { instructions }
+    }
+}
+
+impl Display for CompiledFnObject {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let disassembled = compiler::disassemble(&self.instructions);
+        if let Ok(disassembled) = disassembled {
+            write!(f, "{}", disassembled)
+        } else {
+            Err(std::fmt::Error)
+        }
+    }
+}
+
+impl From<Vec<code::Instructions>> for CompiledFnObject {
+    fn from(codes: Vec<code::Instructions>) -> Self {
+        let instructions = codes.into_iter().flatten().collect();
+        Self { instructions }
     }
 }
 

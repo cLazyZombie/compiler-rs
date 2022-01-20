@@ -4,27 +4,39 @@ use crate::{
     ast::{self, NodeRef},
     code::{self, Opcode},
     lexer::Lexer,
-    object::{IntObject, Object, StringObject},
+    object::{CompiledFnObject, IntObject, Object, StringObject},
     parser::Parser,
     token::Token,
 };
 
 pub struct Compiler<'a> {
-    pub instructions: code::Instructions,
+    scopes: Vec<CompilationScope>,
     pub constants: Vec<Object>,
     symbol_table: &'a mut SymbolTable,
-    last_instruction: Option<code::Opcode>,
-    prev_instruction: Option<code::Opcode>,
+}
+
+struct CompilationScope {
+    pub instructions: code::Instructions,
+    pub last_instruction: Option<code::Opcode>,
+    pub prev_instruction: Option<code::Opcode>,
+}
+
+impl CompilationScope {
+    pub fn new() -> Self {
+        Self {
+            instructions: code::Instructions::new(),
+            last_instruction: None,
+            prev_instruction: None,
+        }
+    }
 }
 
 impl<'a> Compiler<'a> {
     pub fn new(symbol_table: &'a mut SymbolTable) -> Self {
         Self {
-            instructions: code::Instructions::new(),
+            scopes: vec![CompilationScope::new()],
             constants: Vec::new(),
             symbol_table: symbol_table,
-            last_instruction: None,
-            prev_instruction: None,
         }
     }
 
@@ -52,8 +64,9 @@ impl<'a> Compiler<'a> {
                     let symbol_index = symbol.index;
                     self.emit(Opcode::OpSetGlobal, &[symbol_index]);
                 }
-                _ => {
-                    panic!("{:?} is not yet implemented", stmt);
+                ast::Statement::ReturnStatement(return_stmt) => {
+                    self.compile(&return_stmt.expr)?;
+                    self.emit(Opcode::OpReturnValue, &[]);
                 }
             },
             ast::NodeRef::Expr(expr) => match expr {
@@ -185,6 +198,20 @@ impl<'a> Compiler<'a> {
                         )));
                     }
                 }
+                ast::Expr::Function(fn_expr) => {
+                    self.enter_scope();
+                    self.compile(&*fn_expr.body)?;
+                    let mut instructions = Vec::new(); //= self.scopes.last_mut().unwrap().instructions;
+                    std::mem::swap(
+                        &mut instructions,
+                        &mut self.scopes.last_mut().unwrap().instructions,
+                    );
+                    let compiled_fn = CompiledFnObject::new(instructions);
+                    let const_idx = self.add_constant(Object::CompiledFn(compiled_fn));
+                    self.leave_scope();
+
+                    self.emit(Opcode::OpConstant, &[const_idx]);
+                }
                 _ => {
                     panic!("{:?} is not yet implemented", expr);
                 }
@@ -196,7 +223,7 @@ impl<'a> Compiler<'a> {
 
     pub fn bytecode(&self) -> Bytecode {
         Bytecode {
-            instructions: self.instructions.clone(),
+            instructions: self.scopes.last().unwrap().instructions.clone(),
             constants: self.constants.clone(),
         }
     }
@@ -208,18 +235,21 @@ impl<'a> Compiler<'a> {
     }
 
     fn emit(&mut self, op: code::Opcode, operands: &[u16]) -> u16 {
-        let idx = self.instructions.len();
+        let cur_scope = self.scopes.last_mut().unwrap();
+        let idx = cur_scope.instructions.len();
         let mut ins = code::make(op, operands);
-        self.instructions.append(&mut ins);
+        cur_scope.instructions.append(&mut ins);
 
-        self.prev_instruction = self.last_instruction.take();
-        self.last_instruction = Some(op);
+        cur_scope.prev_instruction = cur_scope.last_instruction.take();
+        cur_scope.last_instruction = Some(op);
 
         idx as u16
     }
 
     fn last_instruction_is_pop(&self) -> bool {
-        if let Some(last_instruction) = &self.last_instruction {
+        let cur_scope = self.scopes.last().unwrap();
+
+        if let Some(last_instruction) = &cur_scope.last_instruction {
             last_instruction == &code::Opcode::OpPop
         } else {
             false
@@ -227,22 +257,36 @@ impl<'a> Compiler<'a> {
     }
 
     fn remove_last_pop(&mut self) {
-        self.instructions.pop();
-        self.last_instruction = self.prev_instruction.take();
+        let cur_scope = self.scopes.last_mut().unwrap();
+
+        cur_scope.instructions.pop();
+        cur_scope.last_instruction = cur_scope.prev_instruction.take();
     }
 
     fn change_argument(&mut self, instruction_addr: u16, argument_offset: u16, argument: &[u8]) {
+        let cur_scope = self.scopes.last_mut().unwrap();
+
         for i in 0..argument.len() {
-            self.instructions[i + (instruction_addr as usize) + 1 + (argument_offset as usize)] =
-                argument[i];
+            cur_scope.instructions
+                [i + (instruction_addr as usize) + 1 + (argument_offset as usize)] = argument[i];
         }
     }
 
     fn set_jump_addr(&mut self, instruction_addr: u16) {
-        let jump_addr = self.instructions.len() as u16;
+        let cur_scope = self.scopes.last_mut().unwrap();
+
+        let jump_addr = cur_scope.instructions.len() as u16;
         let mut buf = [0_u8, 2];
         BigEndian::write_u16(&mut buf, jump_addr);
         self.change_argument(instruction_addr, 0, &buf);
+    }
+
+    fn enter_scope(&mut self) {
+        let new_scope = CompilationScope::new();
+        self.scopes.push(new_scope);
+    }
+    fn leave_scope(&mut self) {
+        self.scopes.pop().unwrap();
     }
 }
 
@@ -396,6 +440,33 @@ mod tests {
 "#;
 
         assert_eq!(disassemble(&instructions).unwrap(), expected);
+    }
+
+    #[test]
+    fn compilation_scope() {
+        let mut symbol_table = SymbolTable::new();
+        let mut compiler = Compiler::new(&mut symbol_table);
+
+        assert_eq!(compiler.scopes.len(), 1);
+
+        compiler.emit(Opcode::OpMul, &[]);
+
+        compiler.enter_scope();
+        compiler.emit(Opcode::OpSub, &[]);
+
+        assert_eq!(compiler.scopes.last().unwrap().instructions.len(), 1);
+
+        let last_instruction = &compiler.scopes.last().unwrap().last_instruction;
+        assert_eq!(last_instruction, &Some(Opcode::OpSub));
+
+        compiler.leave_scope();
+        compiler.emit(Opcode::OpAdd, &[]);
+
+        assert_eq!(compiler.scopes.last().unwrap().instructions.len(), 2);
+        let last_instruction = &compiler.scopes.last().unwrap().last_instruction;
+        assert_eq!(last_instruction, &Some(Opcode::OpAdd));
+        let prev_instruction = &compiler.scopes.last().unwrap().prev_instruction;
+        assert_eq!(prev_instruction, &Some(Opcode::OpMul));
     }
 
     #[test]
@@ -794,6 +865,36 @@ mod tests {
                 ],
             ),
         ];
+
+        for (input, constants, expected) in cases {
+            let bytecode = compile(input).unwrap();
+            assert_eq!(&bytecode.constants, &constants);
+            check_instructions_eq(&bytecode.instructions, &expected);
+        }
+    }
+
+    #[test]
+    fn compile_fn() {
+        let cases = [(
+            r#"fn() { return 5 + 10; }"#,
+            vec![
+                Object::Int(5.into()),
+                Object::Int(10.into()),
+                Object::CompiledFn(
+                    vec![
+                        code::make(Opcode::OpConstant, &[0]),
+                        code::make(Opcode::OpConstant, &[1]),
+                        code::make(Opcode::OpAdd, &[]),
+                        code::make(Opcode::OpReturnValue, &[]),
+                    ]
+                    .into(),
+                ),
+            ],
+            vec![
+                code::make(Opcode::OpConstant, &[2]),
+                code::make(Opcode::OpPop, &[]),
+            ],
+        )];
 
         for (input, constants, expected) in cases {
             let bytecode = compile(input).unwrap();

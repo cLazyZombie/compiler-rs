@@ -264,6 +264,15 @@ impl<'a> Vm<'a> {
                         }
                     }
                 }
+                Opcode::OpCall => {
+                    todo!()
+                }
+                Opcode::OpReturnValue => {
+                    todo!()
+                }
+                Opcode::OpReturn => {
+                    todo!()
+                }
             }
         }
         Ok(())

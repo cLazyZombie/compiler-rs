@@ -9,7 +9,7 @@ pub struct Definition {
 pub type Instructions = Vec<u8>;
 
 #[repr(u8)]
-#[derive(Clone, Copy, TryFromPrimitive, PartialEq, Eq)]
+#[derive(Clone, Copy, TryFromPrimitive, PartialEq, Eq, Debug)]
 pub enum Opcode {
     OpConstant,
     OpAdd,
@@ -32,6 +32,9 @@ pub enum Opcode {
     OpArray,
     OpHash,
     OpIndex,
+    OpCall,
+    OpReturnValue,
+    OpReturn,
 }
 
 impl Opcode {
@@ -120,6 +123,18 @@ impl Opcode {
             },
             Opcode::OpIndex => Definition {
                 name: "OpIndex",
+                operand_widths: vec![],
+            },
+            Opcode::OpCall => Definition {
+                name: "OpCall",
+                operand_widths: vec![],
+            },
+            Opcode::OpReturnValue => Definition {
+                name: "OpReturnValue",
+                operand_widths: vec![],
+            },
+            Opcode::OpReturn => Definition {
+                name: "OpReturn",
                 operand_widths: vec![],
             },
         }
