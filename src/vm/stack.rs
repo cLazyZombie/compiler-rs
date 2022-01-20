@@ -2,6 +2,7 @@ use crate::object::Object;
 
 use super::VmError;
 
+#[derive(Debug)]
 pub struct Stack {
     stack: Vec<Object>, // todo. 이름 수정
     sp: usize,

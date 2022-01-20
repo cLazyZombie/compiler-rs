@@ -4,6 +4,7 @@ use crate::{
     code::{self, Opcode},
     compiler::Bytecode,
     object::{BoolObject, IntObject, Object, StringObject},
+    vm::Frame,
 };
 
 use super::{Constants, Frames, GlobalVars, Stack};
@@ -249,13 +250,23 @@ impl<'a> Vm<'a> {
                     }
                 }
                 Opcode::OpCall => {
-                    todo!()
+                    let fn_object = self.stack.pop();
+                    match fn_object {
+                        Some(Object::CompiledFn(fn_object)) => {
+                            let frame = Frame::new(fn_object.instructions);
+                            self.frames.push(frame)?;
+                        }
+                        _ => panic!("can not apply OpCall to {:?}", fn_object),
+                    }
                 }
                 Opcode::OpReturnValue => {
-                    todo!()
+                    let return_value = self.stack.pop().unwrap();
+                    self.frames.pop()?;
+                    self.stack.push(return_value)?;
                 }
                 Opcode::OpReturn => {
-                    todo!()
+                    self.frames.pop()?;
+                    self.stack.push(Object::Null)?;
                 }
             }
         }
@@ -457,6 +468,50 @@ mod test {
             (r#"{1:1, 2:2}[2]"#, Object::Int(2.into())),
             (r#"{1:1, 2:2}[0]"#, Object::Null),
             (r#"[][0]"#, Object::Null),
+        ];
+
+        for (s, expected) in input {
+            vm_test(s, &expected);
+        }
+    }
+
+    #[test]
+    fn calling_function() {
+        let input = [
+            (
+                r#"let five_plus_ten = fn() { 5 + 10 };
+            five_plus_ten();"#,
+                Object::Int(15.into()),
+            ),
+            (
+                r#"let one = fn() {1};
+            let two = fn() {2};
+            one() + two()"#,
+                Object::Int(3.into()),
+            ),
+            (
+                r#"let a = fn() { 1 };
+                let b = fn() { a() + 1 };
+                let c = fn() { b() + 1 };
+                c();
+                "#,
+                Object::Int(3.into()),
+            ),
+            (
+                r#"let early_exit = fn() { return 99; 100; }; early_exit();"#,
+                Object::Int(99.into()),
+            ),
+            (
+                r#"let return_null = fn() { }; return_null();"#,
+                Object::Null,
+            ),
+            (
+                r#"let return_one = fn() {1;};
+                let return_one_returner = fn() { return_one };
+                return_one_returner()();
+                "#,
+                Object::Int(1.into()),
+            ),
         ];
 
         for (s, expected) in input {

@@ -21,6 +21,26 @@ impl Frames {
         Self { frames }
     }
 
+    pub fn push(&mut self, frame: Frame) -> Result<(), VmError> {
+        if self.frames.len() >= Self::MAX_FRAME_COUNT {
+            return Err(VmError::GeneralError(format!("frame overflow to push")));
+        }
+
+        self.frames.push(frame);
+
+        Ok(())
+    }
+
+    pub fn pop(&mut self) -> Result<(), VmError> {
+        if self.frames.is_empty() {
+            return Err(VmError::GeneralError(format!("frame empty to pop")));
+        }
+
+        self.frames.pop();
+
+        Ok(())
+    }
+
     pub fn cur_frame(&self) -> &Frame {
         self.frames.last().unwrap()
     }

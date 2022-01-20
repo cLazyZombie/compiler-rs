@@ -399,7 +399,7 @@ impl Display for HashObject {
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct CompiledFnObject {
-    instructions: code::Instructions,
+    pub instructions: code::Instructions,
 }
 
 impl CompiledFnObject {
