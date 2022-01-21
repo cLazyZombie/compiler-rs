@@ -35,6 +35,8 @@ pub enum Opcode {
     OpCall,
     OpReturnValue,
     OpReturn,
+    OpGetLocal,
+    OpSetLocal,
 }
 
 impl Opcode {
@@ -137,6 +139,14 @@ impl Opcode {
                 name: "OpReturn",
                 operand_widths: vec![],
             },
+            Opcode::OpGetLocal => Definition {
+                name: "OpGetLocal",
+                operand_widths: vec![1],
+            },
+            Opcode::OpSetLocal => Definition {
+                name: "OpSetLocal",
+                operand_widths: vec![1],
+            },
         }
     }
 
@@ -162,6 +172,9 @@ pub fn make(op: Opcode, operands: &[u16]) -> Vec<u8> {
         match width {
             2 => {
                 BigEndian::write_u16(&mut instruction[offset..], *operand as u16);
+            }
+            1 => {
+                instruction[offset] = *operand as u8;
             }
             _ => todo!(),
         }
@@ -207,6 +220,11 @@ mod tests {
             ( Opcode::OpArray, vec![2], vec![Opcode::OpArray as u8, 0, 2]),
             ( Opcode::OpHash, vec![2], vec![Opcode::OpHash as u8, 0, 2]),
             ( Opcode::OpIndex, vec![], vec![Opcode::OpIndex as u8]),
+            ( Opcode::OpCall, vec![], vec![Opcode::OpCall as u8]),
+            ( Opcode::OpReturnValue, vec![], vec![Opcode::OpReturnValue as u8]),
+            ( Opcode::OpReturn, vec![], vec![Opcode::OpReturn as u8]),
+            ( Opcode::OpGetLocal, vec![255], vec![Opcode::OpGetLocal as u8, 255]),
+            ( Opcode::OpSetLocal, vec![0], vec![Opcode::OpSetLocal as u8, 0]),
         ];
 
         for t in tests {

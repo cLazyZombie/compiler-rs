@@ -14,7 +14,7 @@ impl Frames {
     const MAX_FRAME_COUNT: usize = 1024;
 
     pub fn new(instructions: code::Instructions) -> Self {
-        let start_frame = Frame::new(instructions);
+        let start_frame = Frame::new(instructions, 0);
         let mut frames = Vec::with_capacity(Self::MAX_FRAME_COUNT);
         frames.push(start_frame);
 
@@ -31,14 +31,12 @@ impl Frames {
         Ok(())
     }
 
-    pub fn pop(&mut self) -> Result<(), VmError> {
-        if self.frames.is_empty() {
-            return Err(VmError::GeneralError(format!("frame empty to pop")));
+    pub fn pop(&mut self) -> Result<Frame, VmError> {
+        if let Some(frame) = self.frames.pop() {
+            Ok(frame)
+        } else {
+            Err(VmError::GeneralError(format!("frame empty to pop")))
         }
-
-        self.frames.pop();
-
-        Ok(())
     }
 
     pub fn cur_frame(&self) -> &Frame {
@@ -54,13 +52,15 @@ impl Frames {
 pub struct Frame {
     pub instructions: code::Instructions,
     pub ip: usize,
+    pub base_pointer: usize,
 }
 
 impl Frame {
-    pub fn new(instructions: code::Instructions) -> Self {
+    pub fn new(instructions: code::Instructions, base_pointer: usize) -> Self {
         Self {
             instructions,
             ip: 0,
+            base_pointer,
         }
     }
 
@@ -82,6 +82,12 @@ impl Frame {
     pub fn read_u16_from_instructions(&mut self) -> u16 {
         let val = BigEndian::read_u16(&mut self.instructions[self.ip..]);
         self.ip += 2;
+        val
+    }
+
+    pub fn read_u8_from_instructions(&mut self) -> u8 {
+        let val = self.instructions[self.ip];
+        self.ip += 1;
         val
     }
 

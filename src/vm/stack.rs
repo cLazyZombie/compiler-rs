@@ -5,7 +5,7 @@ use super::VmError;
 #[derive(Debug)]
 pub struct Stack {
     stack: Vec<Object>, // todo. 이름 수정
-    sp: usize,
+    pub sp: usize,
     pub last_popped_stack_element: Object,
 }
 
@@ -40,6 +40,33 @@ impl Stack {
             self.last_popped_stack_element = obj.clone();
             self.sp -= 1;
             Some(obj)
+        }
+    }
+
+    pub fn add_sp(&mut self, offset: u16) {
+        self.sp += offset as usize;
+    }
+
+    pub fn set_local(
+        &mut self,
+        base_pointer: usize,
+        local_index: u8,
+        obj: Object,
+    ) -> Result<(), VmError> {
+        let v = self.stack.get_mut(base_pointer + local_index as usize);
+        if let Some(v) = v {
+            *v = obj;
+            Ok(())
+        } else {
+            Err(VmError::GeneralError("stack overflow".to_string()))
+        }
+    }
+
+    pub fn get_local(&self, base_pointer: usize, local_index: u8) -> Result<&Object, VmError> {
+        if let Some(obj) = self.stack.get(base_pointer + local_index as usize) {
+            Ok(obj)
+        } else {
+            Err(VmError::GeneralError("stack overflow".to_string()))
         }
     }
 }

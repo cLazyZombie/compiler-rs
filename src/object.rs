@@ -400,11 +400,15 @@ impl Display for HashObject {
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct CompiledFnObject {
     pub instructions: code::Instructions,
+    pub symbol_count: u16,
 }
 
 impl CompiledFnObject {
-    pub fn new(instructions: code::Instructions) -> Self {
-        Self { instructions }
+    pub fn new(instructions: code::Instructions, symbol_count: u16) -> Self {
+        Self {
+            instructions,
+            symbol_count,
+        }
     }
 }
 
@@ -429,10 +433,13 @@ impl std::fmt::Debug for CompiledFnObject {
     }
 }
 
-impl From<Vec<code::Instructions>> for CompiledFnObject {
-    fn from(codes: Vec<code::Instructions>) -> Self {
+impl From<(Vec<code::Instructions>, u16)> for CompiledFnObject {
+    fn from((codes, symbol_count): (Vec<code::Instructions>, u16)) -> Self {
         let instructions = codes.into_iter().flatten().collect();
-        Self { instructions }
+        Self {
+            instructions,
+            symbol_count,
+        }
     }
 }
 

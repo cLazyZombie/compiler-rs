@@ -62,7 +62,11 @@ impl<'a> Compiler<'a> {
                     self.compile(&let_stmt.expr)?;
                     let symbol = self.symbol_table.define(&let_stmt.ident.to_string());
                     let symbol_index = symbol.index;
-                    self.emit(Opcode::OpSetGlobal, &[symbol_index]);
+                    let opcode = match symbol.scope {
+                        SymbolScope::Global => Opcode::OpSetGlobal,
+                        SymbolScope::Local => Opcode::OpSetLocal,
+                    };
+                    self.emit(opcode, &[symbol_index]);
                 }
                 ast::Statement::ReturnStatement(return_stmt) => {
                     self.compile(&return_stmt.expr)?;
@@ -190,7 +194,11 @@ impl<'a> Compiler<'a> {
                     let symbol = self.symbol_table.get(&ident_expr.to_string());
                     if let Some(symbol) = symbol {
                         let symbol_index = symbol.index;
-                        self.emit(Opcode::OpGetGlobal, &[symbol_index]);
+                        let op = match symbol.scope {
+                            SymbolScope::Global => Opcode::OpGetGlobal,
+                            SymbolScope::Local => Opcode::OpGetLocal,
+                        };
+                        self.emit(op, &[symbol_index]);
                     } else {
                         return Err(CompileError::GeneralError(format!(
                             "not declared identifier {}",
@@ -217,7 +225,8 @@ impl<'a> Compiler<'a> {
                         &mut instructions,
                         &mut self.scopes.last_mut().unwrap().instructions,
                     );
-                    let compiled_fn = CompiledFnObject::new(instructions);
+                    let symbol_count = self.symbol_table.symbol_count();
+                    let compiled_fn = CompiledFnObject::new(instructions, symbol_count);
                     let const_idx = self.add_constant(Object::CompiledFn(compiled_fn));
                     self.leave_scope();
 
@@ -300,8 +309,11 @@ impl<'a> Compiler<'a> {
     fn enter_scope(&mut self) {
         let new_scope = CompilationScope::new();
         self.scopes.push(new_scope);
+
+        self.symbol_table.enter_scope();
     }
     fn leave_scope(&mut self) {
+        self.symbol_table.leave_scope();
         self.scopes.pop().unwrap();
     }
 }
@@ -348,7 +360,7 @@ pub enum DisassembleError {
 
 use std::fmt::Write;
 
-use super::SymbolTable;
+use super::{SymbolScope, SymbolTable};
 
 pub fn disassemble(instructions: &code::Instructions) -> Result<String, DisassembleError> {
     let mut result = String::new();
@@ -392,6 +404,9 @@ fn read_operand(def: &code::Definition, ins: &[u8]) -> (Vec<i32>, i32) {
             2 => {
                 operands[idx] = BigEndian::read_u16(&ins[offset as usize..]) as i32;
             }
+            1 => {
+                operands[idx] = ins[offset as usize] as i32;
+            }
             _ => todo!(),
         }
         offset += *w;
@@ -433,6 +448,11 @@ mod tests {
         instructions.append(&mut code::make(Opcode::OpArray, &[10]));
         instructions.append(&mut code::make(Opcode::OpHash, &[10]));
         instructions.append(&mut code::make(Opcode::OpIndex, &[]));
+        instructions.append(&mut code::make(Opcode::OpCall, &[]));
+        instructions.append(&mut code::make(Opcode::OpReturnValue, &[]));
+        instructions.append(&mut code::make(Opcode::OpReturn, &[]));
+        instructions.append(&mut code::make(Opcode::OpGetLocal, &[0]));
+        instructions.append(&mut code::make(Opcode::OpSetLocal, &[255]));
 
         let expected = r#"0000 OpConstant 1
 0003 OpConstant 2
@@ -453,6 +473,11 @@ mod tests {
 0030 OpArray 10
 0033 OpHash 10
 0036 OpIndex
+0037 OpCall
+0038 OpReturnValue
+0039 OpReturn
+0040 OpGetLocal 0
+0042 OpSetLocal 255
 "#;
 
         assert_eq!(disassemble(&instructions).unwrap(), expected);
@@ -898,13 +923,16 @@ mod tests {
                     Object::Int(5.into()),
                     Object::Int(10.into()),
                     Object::CompiledFn(
-                        vec![
-                            code::make(Opcode::OpConstant, &[0]),
-                            code::make(Opcode::OpConstant, &[1]),
-                            code::make(Opcode::OpAdd, &[]),
-                            code::make(Opcode::OpReturnValue, &[]),
-                        ]
-                        .into(),
+                        (
+                            vec![
+                                code::make(Opcode::OpConstant, &[0]),
+                                code::make(Opcode::OpConstant, &[1]),
+                                code::make(Opcode::OpAdd, &[]),
+                                code::make(Opcode::OpReturnValue, &[]),
+                            ],
+                            0,
+                        )
+                            .into(),
                     ),
                 ],
                 vec![
@@ -918,13 +946,16 @@ mod tests {
                     Object::Int(5.into()),
                     Object::Int(10.into()),
                     Object::CompiledFn(
-                        vec![
-                            code::make(Opcode::OpConstant, &[0]),
-                            code::make(Opcode::OpConstant, &[1]),
-                            code::make(Opcode::OpAdd, &[]),
-                            code::make(Opcode::OpReturnValue, &[]),
-                        ]
-                        .into(),
+                        (
+                            vec![
+                                code::make(Opcode::OpConstant, &[0]),
+                                code::make(Opcode::OpConstant, &[1]),
+                                code::make(Opcode::OpAdd, &[]),
+                                code::make(Opcode::OpReturnValue, &[]),
+                            ],
+                            0,
+                        )
+                            .into(),
                     ),
                 ],
                 vec![
@@ -935,7 +966,7 @@ mod tests {
             (
                 r#"fn() { }"#,
                 vec![Object::CompiledFn(
-                    vec![code::make(Opcode::OpReturn, &[])].into(),
+                    (vec![code::make(Opcode::OpReturn, &[])], 0).into(),
                 )],
                 vec![
                     code::make(Opcode::OpConstant, &[0]),
@@ -959,11 +990,14 @@ mod tests {
                 vec![
                     Object::Int(24.into()),
                     Object::CompiledFn(
-                        vec![
-                            code::make(Opcode::OpConstant, &[0]),
-                            code::make(Opcode::OpReturnValue, &[]),
-                        ]
-                        .into(),
+                        (
+                            vec![
+                                code::make(Opcode::OpConstant, &[0]),
+                                code::make(Opcode::OpReturnValue, &[]),
+                            ],
+                            0,
+                        )
+                            .into(),
                     ),
                 ],
                 vec![
@@ -977,11 +1011,14 @@ mod tests {
                 vec![
                     Object::Int(24.into()),
                     Object::CompiledFn(
-                        vec![
-                            code::make(Opcode::OpConstant, &[0]),
-                            code::make(Opcode::OpReturnValue, &[]),
-                        ]
-                        .into(),
+                        (
+                            vec![
+                                code::make(Opcode::OpConstant, &[0]),
+                                code::make(Opcode::OpReturnValue, &[]),
+                            ],
+                            0,
+                        )
+                            .into(),
                     ),
                 ],
                 vec![
@@ -989,6 +1026,62 @@ mod tests {
                     code::make(Opcode::OpSetGlobal, &[0]),
                     code::make(Opcode::OpGetGlobal, &[0]),
                     code::make(Opcode::OpCall, &[]),
+                    code::make(Opcode::OpPop, &[]),
+                ],
+            ),
+        ];
+
+        for (input, constants, expected) in cases {
+            let bytecode = compile(input).unwrap();
+            assert_eq!(&bytecode.constants, &constants);
+            check_instructions_eq(&bytecode.instructions, &expected);
+        }
+    }
+
+    #[test]
+    fn let_statement_scope() {
+        let cases = [
+            (
+                r#"let num = 55; fn() {num}"#,
+                vec![
+                    Object::Int(55.into()),
+                    Object::CompiledFn(
+                        (
+                            vec![
+                                code::make(Opcode::OpGetGlobal, &[0]),
+                                code::make(Opcode::OpReturnValue, &[]),
+                            ],
+                            0,
+                        )
+                            .into(),
+                    ),
+                ],
+                vec![
+                    code::make(Opcode::OpConstant, &[0]),
+                    code::make(Opcode::OpSetGlobal, &[0]),
+                    code::make(Opcode::OpConstant, &[1]),
+                    code::make(Opcode::OpPop, &[]),
+                ],
+            ),
+            (
+                r#"fn() { let num = 55; num}"#,
+                vec![
+                    Object::Int(55.into()),
+                    Object::CompiledFn(
+                        (
+                            vec![
+                                code::make(Opcode::OpConstant, &[0]),
+                                code::make(Opcode::OpSetLocal, &[0]),
+                                code::make(Opcode::OpGetLocal, &[0]),
+                                code::make(Opcode::OpReturnValue, &[]),
+                            ],
+                            1,
+                        )
+                            .into(),
+                    ),
+                ],
+                vec![
+                    code::make(Opcode::OpConstant, &[1]),
                     code::make(Opcode::OpPop, &[]),
                 ],
             ),

@@ -253,20 +253,37 @@ impl<'a> Vm<'a> {
                     let fn_object = self.stack.pop();
                     match fn_object {
                         Some(Object::CompiledFn(fn_object)) => {
-                            let frame = Frame::new(fn_object.instructions);
+                            let frame = Frame::new(fn_object.instructions, self.stack.sp);
                             self.frames.push(frame)?;
+                            self.stack.add_sp(fn_object.symbol_count);
                         }
                         _ => panic!("can not apply OpCall to {:?}", fn_object),
                     }
                 }
                 Opcode::OpReturnValue => {
                     let return_value = self.stack.pop().unwrap();
-                    self.frames.pop()?;
+                    let fn_frame = self.frames.pop()?;
+                    self.stack.sp = fn_frame.base_pointer;
                     self.stack.push(return_value)?;
                 }
                 Opcode::OpReturn => {
-                    self.frames.pop()?;
+                    let fn_frame = self.frames.pop()?;
+                    self.stack.sp = fn_frame.base_pointer;
                     self.stack.push(Object::Null)?;
+                }
+                Opcode::OpGetLocal => {
+                    let local_index = self.frames.cur_frame_mut().read_u8_from_instructions();
+                    let local_obj = self
+                        .stack
+                        .get_local(self.frames.cur_frame().base_pointer, local_index)?
+                        .clone();
+                    self.stack.push(local_obj)?;
+                }
+                Opcode::OpSetLocal => {
+                    let local_index = self.frames.cur_frame_mut().read_u8_from_instructions();
+                    let obj = self.stack.pop().unwrap();
+                    self.stack
+                        .set_local(self.frames.cur_frame().base_pointer, local_index, obj)?;
                 }
             }
         }
@@ -511,6 +528,43 @@ mod test {
                 return_one_returner()();
                 "#,
                 Object::Int(1.into()),
+            ),
+        ];
+
+        for (s, expected) in input {
+            vm_test(s, &expected);
+        }
+    }
+
+    #[test]
+    fn local_global_variables() {
+        let input = [
+            (
+                r#"let one = fn() { let one = 1; one }; one();"#,
+                Object::Int(1.into()),
+            ),
+            (
+                r#"let one_and_two = fn() { let one = 1; let two = 2; one + two }; one_and_two()"#,
+                Object::Int(3.into()),
+            ),
+            (
+                r#"let one_and_two = fn() { let one = 1; let two = 2; one + two }; 
+                let three_and_four = fn() { let three = 3; let four = 4; three + four };
+                one_and_two() + three_and_four();"#,
+                Object::Int(10.into()),
+            ),
+            (
+                r#"let first_foobar = fn() { let foobar = 50; foobar };
+                let second_foobar = fn() { let foobar = 100; foobar };
+                first_foobar() + second_foobar();"#,
+                Object::Int(150.into()),
+            ),
+            (
+                r#"let global_seed = 50;
+                let minus_one = fn() { let num = 1; global_seed - num };
+                let minus_two = fn() { let num = 2; global_seed - num };
+                minus_one() + minus_two();"#,
+                Object::Int(97.into()),
             ),
         ];
 
