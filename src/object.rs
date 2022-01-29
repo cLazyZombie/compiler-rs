@@ -416,7 +416,7 @@ impl Display for CompiledFnObject {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let disassembled = compiler::disassemble(&self.instructions);
         if let Ok(disassembled) = disassembled {
-            write!(f, "{}", disassembled)
+            write!(f, "{}, symbol_count: {}", disassembled, self.symbol_count)
         } else {
             Err(std::fmt::Error)
         }
@@ -429,6 +429,7 @@ impl std::fmt::Debug for CompiledFnObject {
             compiler::disassemble(&self.instructions).unwrap_or(format!("{:?}", self.instructions));
         f.debug_struct("CompiledFnObject")
             .field("instructions", &disassembled)
+            .field("symbol_count", &self.symbol_count)
             .finish()
     }
 }

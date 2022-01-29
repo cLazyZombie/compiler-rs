@@ -208,6 +208,12 @@ impl<'a> Compiler<'a> {
                 }
                 ast::Expr::Function(fn_expr) => {
                     self.enter_scope();
+
+                    // argument
+                    for arg in &fn_expr.args {
+                        let _symbol = self.symbol_table.define(&arg.0);
+                    }
+
                     self.compile(&*fn_expr.body)?;
 
                     // function 인데 return 으로 끝나지 않았으면 최종 pop된 값을 return으로 바꾼다
@@ -234,7 +240,10 @@ impl<'a> Compiler<'a> {
                 }
                 ast::Expr::Call(call_expr) => {
                     self.compile(&*call_expr.func)?;
-                    self.emit(Opcode::OpCall, &[]);
+                    for arg in &call_expr.args {
+                        self.compile(arg)?;
+                    }
+                    self.emit(Opcode::OpCall, &[call_expr.args.len() as u16]);
                 }
             },
         }
@@ -448,7 +457,7 @@ mod tests {
         instructions.append(&mut code::make(Opcode::OpArray, &[10]));
         instructions.append(&mut code::make(Opcode::OpHash, &[10]));
         instructions.append(&mut code::make(Opcode::OpIndex, &[]));
-        instructions.append(&mut code::make(Opcode::OpCall, &[]));
+        instructions.append(&mut code::make(Opcode::OpCall, &[1]));
         instructions.append(&mut code::make(Opcode::OpReturnValue, &[]));
         instructions.append(&mut code::make(Opcode::OpReturn, &[]));
         instructions.append(&mut code::make(Opcode::OpGetLocal, &[0]));
@@ -473,11 +482,11 @@ mod tests {
 0030 OpArray 10
 0033 OpHash 10
 0036 OpIndex
-0037 OpCall
-0038 OpReturnValue
-0039 OpReturn
-0040 OpGetLocal 0
-0042 OpSetLocal 255
+0037 OpCall 1
+0039 OpReturnValue
+0040 OpReturn
+0041 OpGetLocal 0
+0043 OpSetLocal 255
 "#;
 
         assert_eq!(disassemble(&instructions).unwrap(), expected);
@@ -1086,6 +1095,91 @@ mod tests {
                 ],
             ),
         ];
+
+        for (input, constants, expected) in cases {
+            let bytecode = compile(input).unwrap();
+            assert_eq!(&bytecode.constants, &constants);
+            check_instructions_eq(&bytecode.instructions, &expected);
+        }
+    }
+
+    #[test]
+    fn fn_argument() {
+        let cases = [
+            (
+                r#"fn(a) { a };"#,
+                vec![Object::CompiledFn(
+                    (
+                        vec![
+                            code::make(Opcode::OpGetLocal, &[0]),
+                            code::make(Opcode::OpReturnValue, &[]),
+                        ],
+                        1,
+                    )
+                        .into(),
+                )],
+                vec![
+                    code::make(Opcode::OpConstant, &[0]),
+                    code::make(Opcode::OpPop, &[]),
+                ],
+            ),
+            (
+                r#"fn(a) { let b = 20; a + b };"#,
+                vec![
+                    Object::Int(20.into()),
+                    Object::CompiledFn(
+                        (
+                            vec![
+                                code::make(Opcode::OpConstant, &[0]),
+                                code::make(Opcode::OpSetLocal, &[1]),
+                                code::make(Opcode::OpGetLocal, &[0]),
+                                code::make(Opcode::OpGetLocal, &[1]),
+                                code::make(Opcode::OpAdd, &[]),
+                                code::make(Opcode::OpReturnValue, &[]),
+                            ],
+                            2,
+                        )
+                            .into(),
+                    ),
+                ],
+                vec![
+                    code::make(Opcode::OpConstant, &[1]),
+                    code::make(Opcode::OpPop, &[]),
+                ],
+            ),
+        ];
+
+        for (input, constants, expected) in cases {
+            let bytecode = compile(input).unwrap();
+            assert_eq!(&bytecode.constants, &constants);
+            check_instructions_eq(&bytecode.instructions, &expected);
+        }
+    }
+
+    #[test]
+    fn fn_argument_call() {
+        let cases = [(
+            r#"fn(a) { a }(10);"#,
+            vec![
+                Object::CompiledFn(
+                    (
+                        vec![
+                            code::make(Opcode::OpGetLocal, &[0]),
+                            code::make(Opcode::OpReturnValue, &[]),
+                        ],
+                        1,
+                    )
+                        .into(),
+                ),
+                Object::Int(10.into()),
+            ],
+            vec![
+                code::make(Opcode::OpConstant, &[0]),
+                code::make(Opcode::OpConstant, &[1]),
+                code::make(Opcode::OpCall, &[1]),
+                code::make(Opcode::OpPop, &[]),
+            ],
+        )];
 
         for (input, constants, expected) in cases {
             let bytecode = compile(input).unwrap();

@@ -129,7 +129,7 @@ impl Opcode {
             },
             Opcode::OpCall => Definition {
                 name: "OpCall",
-                operand_widths: vec![],
+                operand_widths: vec![1],
             },
             Opcode::OpReturnValue => Definition {
                 name: "OpReturnValue",
@@ -220,7 +220,7 @@ mod tests {
             ( Opcode::OpArray, vec![2], vec![Opcode::OpArray as u8, 0, 2]),
             ( Opcode::OpHash, vec![2], vec![Opcode::OpHash as u8, 0, 2]),
             ( Opcode::OpIndex, vec![], vec![Opcode::OpIndex as u8]),
-            ( Opcode::OpCall, vec![], vec![Opcode::OpCall as u8]),
+            ( Opcode::OpCall, vec![1], vec![Opcode::OpCall as u8, 1]),
             ( Opcode::OpReturnValue, vec![], vec![Opcode::OpReturnValue as u8]),
             ( Opcode::OpReturn, vec![], vec![Opcode::OpReturn as u8]),
             ( Opcode::OpGetLocal, vec![255], vec![Opcode::OpGetLocal as u8, 255]),

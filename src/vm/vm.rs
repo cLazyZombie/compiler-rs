@@ -250,6 +250,7 @@ impl<'a> Vm<'a> {
                     }
                 }
                 Opcode::OpCall => {
+                    let _args_count = frame.read_u8_from_instructions();
                     let fn_object = self.stack.pop();
                     match fn_object {
                         Some(Object::CompiledFn(fn_object)) => {
