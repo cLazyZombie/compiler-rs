@@ -250,13 +250,20 @@ impl<'a> Vm<'a> {
                     }
                 }
                 Opcode::OpCall => {
-                    let _args_count = frame.read_u8_from_instructions();
+                    let args_count = frame.read_u8_from_instructions();
                     let fn_object = self.stack.pop();
                     match fn_object {
                         Some(Object::CompiledFn(fn_object)) => {
-                            let frame = Frame::new(fn_object.instructions, self.stack.sp);
+                            let frame = Frame::new(
+                                fn_object.instructions,
+                                self.stack.sp - args_count as usize, // 현재 stack에는 args가 들어가 있음. args 갯수도 계산에 포함
+                            );
                             self.frames.push(frame)?;
-                            self.stack.add_sp(fn_object.symbol_count);
+                            let local_symbol_count = fn_object
+                                .symbol_count
+                                .checked_sub(args_count as u16)
+                                .unwrap(); // symbol count = argument_symbol_count + local_symbol_count
+                            self.stack.add_sp(local_symbol_count);
                         }
                         _ => panic!("can not apply OpCall to {:?}", fn_object),
                     }
@@ -529,6 +536,26 @@ mod test {
                 return_one_returner()();
                 "#,
                 Object::Int(1.into()),
+            ),
+        ];
+
+        for (s, expected) in input {
+            vm_test(s, &expected);
+        }
+    }
+
+    #[test]
+    fn calling_function_with_argument() {
+        let input = [
+            (
+                r#"let add = fn(a, b) { a + b };
+            add(1, 2);"#,
+                Object::Int(3.into()),
+            ),
+            (
+                r#"let add = fn(a) { let b = 2; a + b };
+                add(1);"#,
+                Object::Int(3.into()),
             ),
         ];
 

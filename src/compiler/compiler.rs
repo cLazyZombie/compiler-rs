@@ -239,10 +239,10 @@ impl<'a> Compiler<'a> {
                     self.emit(Opcode::OpConstant, &[const_idx]);
                 }
                 ast::Expr::Call(call_expr) => {
-                    self.compile(&*call_expr.func)?;
                     for arg in &call_expr.args {
                         self.compile(arg)?;
                     }
+                    self.compile(&*call_expr.func)?;
                     self.emit(Opcode::OpCall, &[call_expr.args.len() as u16]);
                 }
             },
@@ -1158,28 +1158,57 @@ mod tests {
 
     #[test]
     fn fn_argument_call() {
-        let cases = [(
-            r#"fn(a) { a }(10);"#,
-            vec![
-                Object::CompiledFn(
-                    (
-                        vec![
-                            code::make(Opcode::OpGetLocal, &[0]),
-                            code::make(Opcode::OpReturnValue, &[]),
-                        ],
-                        1,
-                    )
-                        .into(),
-                ),
-                Object::Int(10.into()),
-            ],
-            vec![
-                code::make(Opcode::OpConstant, &[0]),
-                code::make(Opcode::OpConstant, &[1]),
-                code::make(Opcode::OpCall, &[1]),
-                code::make(Opcode::OpPop, &[]),
-            ],
-        )];
+        let cases = [
+            (
+                r#"fn(a) { a }(10);"#,
+                vec![
+                    Object::Int(10.into()),
+                    Object::CompiledFn(
+                        (
+                            vec![
+                                code::make(Opcode::OpGetLocal, &[0]),
+                                code::make(Opcode::OpReturnValue, &[]),
+                            ],
+                            1,
+                        )
+                            .into(),
+                    ),
+                ],
+                vec![
+                    code::make(Opcode::OpConstant, &[0]),
+                    code::make(Opcode::OpConstant, &[1]),
+                    code::make(Opcode::OpCall, &[1]),
+                    code::make(Opcode::OpPop, &[]),
+                ],
+            ),
+            (
+                r#"fn(a) { let b = 20; a + b }(10);"#,
+                vec![
+                    Object::Int(10.into()),
+                    Object::Int(20.into()),
+                    Object::CompiledFn(
+                        (
+                            vec![
+                                code::make(Opcode::OpConstant, &[1]),
+                                code::make(Opcode::OpSetLocal, &[1]),
+                                code::make(Opcode::OpGetLocal, &[0]),
+                                code::make(Opcode::OpGetLocal, &[1]),
+                                code::make(Opcode::OpAdd, &[]),
+                                code::make(Opcode::OpReturnValue, &[]),
+                            ],
+                            2,
+                        )
+                            .into(),
+                    ),
+                ],
+                vec![
+                    code::make(Opcode::OpConstant, &[0]),
+                    code::make(Opcode::OpConstant, &[2]),
+                    code::make(Opcode::OpCall, &[1]),
+                    code::make(Opcode::OpPop, &[]),
+                ],
+            ),
+        ];
 
         for (input, constants, expected) in cases {
             let bytecode = compile(input).unwrap();
